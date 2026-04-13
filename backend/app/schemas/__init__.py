@@ -1,21 +1,21 @@
 """Reexporta schemas Pydantic usados nas rotas da API."""
 
 from app.schemas.produto import (
-    ItemAvaliacao,
-    ProdutoAtualizacao,
-    ProdutoCriacao,
-    ProdutoItemLista,
-    ProdutoRespostaDetalhe,
-    ProdutoRespostaLista,
-    ItemHistoricoVenda,
+    ReviewItem,
+    ProductUpdate,
+    ProductCreate,
+    ProductListItem,
+    ProductDetailResponse,
+    ProductListResponse,
+    OrderHistoryItem,
 )
 
 __all__ = [
-    "ItemAvaliacao",
-    "ProdutoAtualizacao",
-    "ProdutoCriacao",
-    "ProdutoItemLista",
-    "ProdutoRespostaDetalhe",
-    "ProdutoRespostaLista",
-    "ItemHistoricoVenda",
+    "ReviewItem",
+    "ProductUpdate",
+    "ProductCreate",
+    "ProductListItem",
+    "ProductDetailResponse",
+    "ProductListResponse",
+    "OrderHistoryItem",
 ]

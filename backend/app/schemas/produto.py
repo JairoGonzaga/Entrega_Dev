@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class ProdutoBase(BaseModel):
+class ProductBase(BaseModel):
     nome_produto: str = Field(min_length=1, max_length=255)
     categoria_produto: str = Field(min_length=1, max_length=100)
     descricao_produto: Optional[str] = Field(default=None, max_length=1000)
@@ -17,11 +17,11 @@ class ProdutoBase(BaseModel):
     largura_centimetros: Optional[float] = Field(default=None, ge=0)
 
 
-class ProdutoCriacao(ProdutoBase):
+class ProductCreate(ProductBase):
     pass
 
 
-class ProdutoAtualizacao(BaseModel):
+class ProductUpdate(BaseModel):
     nome_produto: Optional[str] = Field(default=None, min_length=1, max_length=255)
     categoria_produto: Optional[str] = Field(default=None, min_length=1, max_length=100)
     descricao_produto: Optional[str] = Field(default=None, max_length=1000)
@@ -32,7 +32,7 @@ class ProdutoAtualizacao(BaseModel):
     largura_centimetros: Optional[float] = Field(default=None, ge=0)
 
 
-class ProdutoItemLista(BaseModel):
+class ProductListItem(BaseModel):
     id_produto: str
     nome_produto: str
     categoria_produto: str
@@ -43,12 +43,12 @@ class ProdutoItemLista(BaseModel):
     quantidade_registros: int = 1
 
 
-class ProdutoRespostaLista(BaseModel):
+class ProductListResponse(BaseModel):
     total: int
-    itens: list[ProdutoItemLista]
+    itens: list[ProductListItem]
 
 
-class ItemHistoricoVenda(BaseModel):
+class OrderHistoryItem(BaseModel):
     id_pedido: str
     data_pedido: Optional[datetime]
     quantidade_itens: int
@@ -56,7 +56,7 @@ class ItemHistoricoVenda(BaseModel):
     status: str
 
 
-class ItemAvaliacao(BaseModel):
+class ReviewItem(BaseModel):
     id_avaliacao: str
     nota: int
     titulo: Optional[str]
@@ -64,7 +64,7 @@ class ItemAvaliacao(BaseModel):
     data_comentario: Optional[datetime]
 
 
-class ProdutoRespostaDetalhe(BaseModel):
+class ProductDetailResponse(BaseModel):
     id_produto: str
     nome_produto: str
     categoria_produto: str
@@ -73,5 +73,5 @@ class ProdutoRespostaDetalhe(BaseModel):
     medidas: dict[str, Optional[float]]
     media_avaliacoes: Optional[float]
     total_vendas: int
-    vendas_historico: list[ItemHistoricoVenda]
-    avaliacoes: list[ItemAvaliacao]
+    vendas_historico: list[OrderHistoryItem]
+    avaliacoes: list[ReviewItem]

@@ -10,18 +10,18 @@ from typing import Iterable
 from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
-from app.database import SessaoLocal
-from app.models.avaliacao_pedido import AvaliacaoPedido
-from app.models.consumidor import Consumidor
-from app.models.item_pedido import ItemPedido
-from app.models.pedido import Pedido
-from app.models.produto import Produto
-from app.models.vendedor import Vendedor
+from app.database import SessionLocal
+from app.models.avaliacao_pedido import OrderReview
+from app.models.consumidor import Customer
+from app.models.item_pedido import OrderItem
+from app.models.pedido import Order
+from app.models.produto import Product
+from app.models.vendedor import Seller
 
-TAMANHO_LOTE = 5000
+BATCH_SIZE = 5000
 
 
-def _parsear_float(value: str | None) -> float | None:
+def _parse_float(value: str | None) -> float | None:
     """
     Converte string para float respeitando valores vazios.
     Retorna None quando a entrada e nula ou so tem espacos.
@@ -29,14 +29,14 @@ def _parsear_float(value: str | None) -> float | None:
     if value is None:
         return None
 
-    normalizado = value.strip()
-    if not normalizado:
+    normalized = value.strip()
+    if not normalized:
         return None
 
-    return float(normalizado)
+    return float(normalized)
 
 
-def _parsear_int(value: str | None) -> int | None:
+def _parse_int(value: str | None) -> int | None:
     """
     Converte string para int respeitando valores vazios.
     Retorna None quando a entrada e nula ou so tem espacos.
@@ -44,14 +44,14 @@ def _parsear_int(value: str | None) -> int | None:
     if value is None:
         return None
 
-    normalizado = value.strip()
-    if not normalizado:
+    normalized = value.strip()
+    if not normalized:
         return None
 
-    return int(normalizado)
+    return int(normalized)
 
 
-def _parsear_data_hora(value: str | None) -> datetime | None:
+def _parse_datetime(value: str | None) -> datetime | None:
     """
     Converte string ISO para datetime quando possivel.
     Retorna None para valores vazios ou ausentes.
@@ -59,14 +59,14 @@ def _parsear_data_hora(value: str | None) -> datetime | None:
     if value is None:
         return None
 
-    normalizado = value.strip()
-    if not normalizado:
+    normalized = value.strip()
+    if not normalized:
         return None
 
-    return datetime.fromisoformat(normalizado)
+    return datetime.fromisoformat(normalized)
 
 
-def _parsear_data(value: str | None) -> date | None:
+def _parse_date(value: str | None) -> date | None:
     """
     Converte string ISO para date quando possivel.
     Retorna None para valores vazios ou ausentes.
@@ -74,14 +74,14 @@ def _parsear_data(value: str | None) -> date | None:
     if value is None:
         return None
 
-    normalizado = value.strip()
-    if not normalizado:
+    normalized = value.strip()
+    if not normalized:
         return None
 
-    return date.fromisoformat(normalizado)
+    return date.fromisoformat(normalized)
 
 
-def _linhas_csv(file_path: Path) -> Iterable[dict[str, str]]:
+def _iter_csv_rows(file_path: Path) -> Iterable[dict[str, str]]:
     """
     Itera um CSV e entrega cada linha como dicionario.
     Usa encoding utf-8-sig para lidar com BOM.
@@ -92,62 +92,62 @@ def _linhas_csv(file_path: Path) -> Iterable[dict[str, str]]:
             yield row
 
 
-def _inserir_em_lotes(
+def _insert_in_batches(
     db: Session,
     model: type,
-    linhas: Iterable[dict],
-    tamanho_lote: int = TAMANHO_LOTE,
+    rows: Iterable[dict],
+    batch_size: int = BATCH_SIZE,
 ) -> int:
     """
     Insere registros em lotes para reduzir custo de transacao.
     Usa OR IGNORE para evitar falhas quando ja existem dados.
     """
-    lote: list[dict] = []
-    inseridos = 0
+    batch: list[dict] = []
+    inserted = 0
 
-    for linha in linhas:
-        lote.append(linha)
-        if len(lote) >= tamanho_lote:
-            db.execute(insert(model).prefix_with("OR IGNORE"), lote)
-            inseridos += len(lote)
-            lote.clear()
+    for row in rows:
+        batch.append(row)
+        if len(batch) >= batch_size:
+            db.execute(insert(model).prefix_with("OR IGNORE"), batch)
+            inserted += len(batch)
+            batch.clear()
 
-    if lote:
-        db.execute(insert(model).prefix_with("OR IGNORE"), lote)
-        inseridos += len(lote)
+    if batch:
+        db.execute(insert(model).prefix_with("OR IGNORE"), batch)
+        inserted += len(batch)
 
-    return inseridos
+    return inserted
 
 
-def _montar_estatisticas_preco(itens_csv: Path) -> dict[str, tuple[float, int]]:
+def _build_price_stats(order_items_csv: Path) -> dict[str, tuple[float, int]]:
     """
     Calcula estatisticas de preco por id_produto.
     Retorna soma e contagem para derivar preco medio.
     """
-    estatisticas: dict[str, tuple[float, int]] = {}
+    stats: dict[str, tuple[float, int]] = {}
 
-    for row in _linhas_csv(itens_csv):
-        id_produto = row["id_produto"].strip()
-        preco = _parsear_float(row.get("preco_BRL"))
-        if preco is None:
+    for row in _iter_csv_rows(order_items_csv):
+        product_id = row["id_produto"].strip()
+        price = _parse_float(row.get("preco_BRL"))
+        if price is None:
             continue
 
-        total, quantidade = estatisticas.get(id_produto, (0.0, 0))
-        estatisticas[id_produto] = (total + preco, quantidade + 1)
+        total, count = stats.get(product_id, (0.0, 0))
+        stats[product_id] = (total + price, count + 1)
 
-    return estatisticas
+    return stats
 
 
-def _descricao_padrao(categoria: str) -> str:
+def _default_description(category: str) -> str:
     """
     Gera uma descricao padrao legivel a partir da categoria.
     Substitui underscores por espacos e normaliza o texto.
     """
-    label = categoria.replace("_", " ").strip()
+    label = category.replace("_", " ").strip()
     return f"Item da categoria {label}."
 
 
-def _diretorio_dados_repo() -> Path:
+def _data_dir() -> Path:
     """
     Resolve o caminho da pasta raiz de dados de ingestao.
     Assume a estrutura padrao do repositorio do projeto.
@@ -156,160 +156,160 @@ def _diretorio_dados_repo() -> Path:
     return repo_root / "data_ingestao"
 
 
-def popular_banco_a_partir_csv() -> bool:
+def populate_db_from_csv() -> bool:
     """
     Popula tabelas a partir dos CSVs se ainda estiverem vazias.
     Retorna False quando arquivos faltam ou quando ja ha dados.
     """
-    diretorio_dados = _diretorio_dados_repo()
-    if not diretorio_dados.exists():
+    data_dir = _data_dir()
+    if not data_dir.exists():
         return False
 
-    produtos_csv = diretorio_dados / "dim_produtos.csv"
-    consumidores_csv = diretorio_dados / "dim_consumidores.csv"
-    vendedores_csv = diretorio_dados / "dim_vendedores.csv"
-    pedidos_csv = diretorio_dados / "fat_pedidos.csv"
-    itens_csv = diretorio_dados / "fat_itens_pedidos.csv"
-    avaliacoes_csv = diretorio_dados / "fat_avaliacoes_pedidos.csv"
+    products_csv = data_dir / "dim_produtos.csv"
+    customers_csv = data_dir / "dim_consumidores.csv"
+    sellers_csv = data_dir / "dim_vendedores.csv"
+    orders_csv = data_dir / "fat_pedidos.csv"
+    order_items_csv = data_dir / "fat_itens_pedidos.csv"
+    reviews_csv = data_dir / "fat_avaliacoes_pedidos.csv"
 
-    arquivos_necessarios = [
-        produtos_csv,
-        consumidores_csv,
-        vendedores_csv,
-        pedidos_csv,
-        itens_csv,
-        avaliacoes_csv,
+    required_files = [
+        products_csv,
+        customers_csv,
+        sellers_csv,
+        orders_csv,
+        order_items_csv,
+        reviews_csv,
     ]
 
-    if any(not file_path.exists() for file_path in arquivos_necessarios):
+    if any(not file_path.exists() for file_path in required_files):
         return False
 
-    with SessaoLocal() as db:
-        contagem_tabelas = {
-            "consumidores": db.scalar(select(func.count()).select_from(Consumidor)) or 0,
-            "vendedores": db.scalar(select(func.count()).select_from(Vendedor)) or 0,
-            "produtos": db.scalar(select(func.count()).select_from(Produto)) or 0,
-            "pedidos": db.scalar(select(func.count()).select_from(Pedido)) or 0,
-            "itens": db.scalar(select(func.count()).select_from(ItemPedido)) or 0,
-            "avaliacoes": db.scalar(select(func.count()).select_from(AvaliacaoPedido)) or 0,
+    with SessionLocal() as db:
+        table_counts = {
+            "customers": db.scalar(select(func.count()).select_from(Customer)) or 0,
+            "sellers": db.scalar(select(func.count()).select_from(Seller)) or 0,
+            "products": db.scalar(select(func.count()).select_from(Product)) or 0,
+            "orders": db.scalar(select(func.count()).select_from(Order)) or 0,
+            "order_items": db.scalar(select(func.count()).select_from(OrderItem)) or 0,
+            "reviews": db.scalar(select(func.count()).select_from(OrderReview)) or 0,
         }
-        if all(contagem > 0 for contagem in contagem_tabelas.values()):
+        if all(count > 0 for count in table_counts.values()):
             return False
 
-        estatisticas_preco = _montar_estatisticas_preco(itens_csv)
+        price_stats = _build_price_stats(order_items_csv)
 
-        _inserir_em_lotes(
+        _insert_in_batches(
             db,
-            Consumidor,
+            Customer,
             (
                 {
-                    "id_consumidor": row["id_consumidor"],
-                    "prefixo_cep": row["prefixo_cep"],
-                    "nome_consumidor": row["nome_consumidor"],
+                    "customer_id": row["id_consumidor"],
+                    "zip_prefix": row["prefixo_cep"],
+                    "customer_name": row["nome_consumidor"],
                     "cidade": row["cidade"],
                     "estado": row["estado"],
                 }
-                for row in _linhas_csv(consumidores_csv)
+                for row in _iter_csv_rows(customers_csv)
             ),
         )
         db.commit()
 
-        _inserir_em_lotes(
+        _insert_in_batches(
             db,
-            Vendedor,
+            Seller,
             (
                 {
-                    "id_vendedor": row["id_vendedor"],
-                    "nome_vendedor": row["nome_vendedor"],
-                    "prefixo_cep": row["prefixo_cep"],
+                    "seller_id": row["id_vendedor"],
+                    "seller_name": row["nome_vendedor"],
+                    "zip_prefix": row["prefixo_cep"],
                     "cidade": row["cidade"],
                     "estado": row["estado"],
                 }
-                for row in _linhas_csv(vendedores_csv)
+                for row in _iter_csv_rows(sellers_csv)
             ),
         )
         db.commit()
 
-        _inserir_em_lotes(
+        _insert_in_batches(
             db,
-            Produto,
+            Product,
             (
                 {
-                    "id_produto": row["id_produto"],
-                    "nome_produto": row["nome_produto"],
-                    "categoria_produto": row["categoria_produto"],
-                    "descricao_produto": _descricao_padrao(row["categoria_produto"]),
-                    "preco_base": (
+                    "product_id": row["id_produto"],
+                    "product_name": row["nome_produto"],
+                    "product_category": row["categoria_produto"],
+                    "product_description": _default_description(row["categoria_produto"]),
+                    "base_price": (
                         round(
-                            estatisticas_preco[row["id_produto"]][0]
-                            / estatisticas_preco[row["id_produto"]][1],
+                            price_stats[row["id_produto"]][0]
+                            / price_stats[row["id_produto"]][1],
                             2,
                         )
-                        if row["id_produto"] in estatisticas_preco
+                        if row["id_produto"] in price_stats
                         else None
                     ),
-                    "peso_produto_gramas": _parsear_float(row.get("peso_produto_gramas")),
-                    "comprimento_centimetros": _parsear_float(row.get("comprimento_centimetros")),
-                    "altura_centimetros": _parsear_float(row.get("altura_centimetros")),
-                    "largura_centimetros": _parsear_float(row.get("largura_centimetros")),
+                    "product_weight_grams": _parse_float(row.get("peso_produto_gramas")),
+                    "length_cm": _parse_float(row.get("comprimento_centimetros")),
+                    "height_cm": _parse_float(row.get("altura_centimetros")),
+                    "width_cm": _parse_float(row.get("largura_centimetros")),
                 }
-                for row in _linhas_csv(produtos_csv)
+                for row in _iter_csv_rows(products_csv)
             ),
         )
         db.commit()
 
-        _inserir_em_lotes(
+        _insert_in_batches(
             db,
-            Pedido,
+            Order,
             (
                 {
-                    "id_pedido": row["id_pedido"],
-                    "id_consumidor": row["id_consumidor"],
+                    "order_id": row["id_pedido"],
+                    "customer_id": row["id_consumidor"],
                     "status": row["status"],
-                    "pedido_compra_timestamp": _parsear_data_hora(row.get("pedido_compra_timestamp")),
-                    "pedido_entregue_timestamp": _parsear_data_hora(row.get("pedido_entregue_timestamp")),
-                    "data_estimada_entrega": _parsear_data(row.get("data_estimada_entrega")),
-                    "tempo_entrega_dias": _parsear_float(row.get("tempo_entrega_dias")),
-                    "tempo_entrega_estimado_dias": _parsear_float(row.get("tempo_entrega_estimado_dias")),
-                    "diferenca_entrega_dias": _parsear_float(row.get("diferenca_entrega_dias")),
-                    "entrega_no_prazo": row["entrega_no_prazo"],
+                    "purchase_timestamp": _parse_datetime(row.get("pedido_compra_timestamp")),
+                    "delivered_timestamp": _parse_datetime(row.get("pedido_entregue_timestamp")),
+                    "estimated_delivery_date": _parse_date(row.get("data_estimada_entrega")),
+                    "delivery_days": _parse_float(row.get("tempo_entrega_dias")),
+                    "estimated_delivery_days": _parse_float(row.get("tempo_entrega_estimado_dias")),
+                    "delivery_delay_days": _parse_float(row.get("diferenca_entrega_dias")),
+                    "on_time_delivery": row["entrega_no_prazo"],
                 }
-                for row in _linhas_csv(pedidos_csv)
+                for row in _iter_csv_rows(orders_csv)
             ),
         )
         db.commit()
 
-        _inserir_em_lotes(
+        _insert_in_batches(
             db,
-            ItemPedido,
+            OrderItem,
             (
                 {
-                    "id_pedido": row["id_pedido"],
-                    "id_item": _parsear_int(row.get("id_item")),
-                    "id_produto": row["id_produto"],
-                    "id_vendedor": row["id_vendedor"],
-                    "preco_BRL": _parsear_float(row.get("preco_BRL")),
-                    "preco_frete": _parsear_float(row.get("preco_frete")),
+                    "order_id": row["id_pedido"],
+                    "item_id": _parse_int(row.get("id_item")),
+                    "product_id": row["id_produto"],
+                    "seller_id": row["id_vendedor"],
+                    "price_brl": _parse_float(row.get("preco_BRL")),
+                    "freight_price": _parse_float(row.get("preco_frete")),
                 }
-                for row in _linhas_csv(itens_csv)
+                for row in _iter_csv_rows(order_items_csv)
             ),
         )
         db.commit()
 
-        _inserir_em_lotes(
+        _insert_in_batches(
             db,
-            AvaliacaoPedido,
+            OrderReview,
             (
                 {
-                    "id_avaliacao": row["id_avaliacao"],
-                    "id_pedido": row["id_pedido"],
-                    "avaliacao": _parsear_int(row.get("avaliacao")),
-                    "titulo_comentario": row["titulo_comentario"],
-                    "comentario": row["comentario"],
-                    "data_comentario": _parsear_data_hora(row.get("data_comentario")),
-                    "data_resposta": _parsear_data_hora(row.get("data_resposta")),
+                    "review_id": row["id_avaliacao"],
+                    "order_id": row["id_pedido"],
+                    "rating": _parse_int(row.get("avaliacao")),
+                    "comment_title": row["titulo_comentario"],
+                    "comment": row["comentario"],
+                    "comment_date": _parse_datetime(row.get("data_comentario")),
+                    "response_date": _parse_datetime(row.get("data_resposta")),
                 }
-                for row in _linhas_csv(avaliacoes_csv)
+                for row in _iter_csv_rows(reviews_csv)
             ),
         )
         db.commit()

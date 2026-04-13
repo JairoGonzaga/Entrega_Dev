@@ -3,7 +3,7 @@ import './App.css'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
-type ProdutoItemLista = {
+type ProductListItem = {
   id_produto: string
   nome_produto: string
   categoria_produto: string
@@ -14,14 +14,14 @@ type ProdutoItemLista = {
   quantidade_registros: number
 }
 
-type ProdutoRespostaLista = {
+type ProductListResponse = {
   total: number
-  itens: ProdutoItemLista[]
+  itens: ProductListItem[]
 }
 
-type MapaImagensCategoria = Record<string, string>
+type CategoryImageMap = Record<string, string>
 
-type ItemHistoricoVenda = {
+type OrderHistoryItem = {
   id_pedido: string
   data_pedido: string | null
   quantidade_itens: number
@@ -29,7 +29,7 @@ type ItemHistoricoVenda = {
   status: string
 }
 
-type ItemAvaliacao = {
+type ReviewItem = {
   id_avaliacao: string
   nota: number
   titulo: string | null
@@ -37,7 +37,7 @@ type ItemAvaliacao = {
   data_comentario: string | null
 }
 
-type ProdutoDetalhe = {
+type ProductDetail = {
   id_produto: string
   nome_produto: string
   categoria_produto: string
@@ -51,11 +51,11 @@ type ProdutoDetalhe = {
   }
   media_avaliacoes: number | null
   total_vendas: number
-  vendas_historico: ItemHistoricoVenda[]
-  avaliacoes: ItemAvaliacao[]
+  vendas_historico: OrderHistoryItem[]
+  avaliacoes: ReviewItem[]
 }
 
-type DadosProduto = {
+type ProductFormData = {
   nome_produto: string
   categoria_produto: string
   descricao_produto: string | null
@@ -67,7 +67,7 @@ type DadosProduto = {
 }
 
 const API_URL_BASE = import.meta.env.VITE_API_BASE_URL
-const API_CANDIDATAS = Array.from(
+const API_CANDIDATES = Array.from(
   new Set(
     [
       API_URL_BASE,
@@ -77,9 +77,9 @@ const API_CANDIDATAS = Array.from(
     ].filter((value): value is string => Boolean(value?.trim())),
   ),
 )
-const TAMANHO_PAGINA = 10
+const PAGE_SIZE = 10
 
-const formularioVazio: DadosProduto = {
+const emptyForm: ProductFormData = {
   nome_produto: '',
   categoria_produto: '',
   descricao_produto: null,
@@ -90,92 +90,92 @@ const formularioVazio: DadosProduto = {
   largura_centimetros: null,
 }
 
-async function buscarJson<T>(path: string): Promise<T> {
+async function fetchJson<T>(path: string): Promise<T> {
   /*
    * Faz requisicao e retorna JSON tipado.
    * Dispara erro quando a API responde com falha.
    */
-  const resposta = await buscarComFallback(path)
-  if (!resposta.ok) {
-    const corpo = await resposta.json().catch(() => null)
-    throw new Error(corpo?.detail ?? 'Falha na requisicao')
+  const response = await fetchWithFallback(path)
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.detail ?? 'Falha na requisicao')
   }
 
-  return resposta.json() as Promise<T>
+  return response.json() as Promise<T>
 }
 
-async function lerRespostaJson(resposta: Response) {
+async function readJsonResponse(response: Response) {
   /*
    * Le o corpo da resposta com seguranca.
    * Retorna null quando nao ha conteudo ou JSON invalido.
    */
-  const texto = await resposta.text()
-  if (!texto) {
+  const text = await response.text()
+  if (!text) {
     return null
   }
 
   try {
-    return JSON.parse(texto)
+    return JSON.parse(text)
   } catch {
     return null
   }
 }
 
-async function buscarCategorias() {
+async function fetchCategories() {
   /*
    * Busca lista de categorias na API.
    * Valida o formato para evitar estado inconsistente.
    */
-  const resposta = await buscarComFallback('/produtos/categorias')
-  const dados = await lerRespostaJson(resposta)
+  const response = await fetchWithFallback('/produtos/categorias')
+  const data = await readJsonResponse(response)
 
-  if (!resposta.ok) {
-    const detalhe = typeof dados === 'object' && dados ? (dados as { detail?: string }).detail : undefined
-    throw new Error(detalhe ?? `Erro ${resposta.status} ao carregar categorias`)
+  if (!response.ok) {
+    const detail = typeof data === 'object' && data ? (data as { detail?: string }).detail : undefined
+    throw new Error(detail ?? `Erro ${response.status} ao carregar categorias`)
   }
 
-  if (!Array.isArray(dados)) {
+  if (!Array.isArray(data)) {
     throw new Error('Resposta invalida de categorias')
   }
 
-  return dados as string[]
+  return data as string[]
 }
 
-async function buscarImagensCategorias() {
+async function fetchCategoryImages() {
   /*
    * Busca mapeamento categoria -> imagem.
    * Garante que o retorno seja um objeto simples.
    */
-  const resposta = await buscarComFallback('/produtos/categorias-imagens')
-  const dados = await lerRespostaJson(resposta)
+  const response = await fetchWithFallback('/produtos/categorias-imagens')
+  const data = await readJsonResponse(response)
 
-  if (!resposta.ok) {
-    const detalhe = typeof dados === 'object' && dados ? (dados as { detail?: string }).detail : undefined
-    throw new Error(detalhe ?? `Erro ${resposta.status} ao carregar imagens`) 
+  if (!response.ok) {
+    const detail = typeof data === 'object' && data ? (data as { detail?: string }).detail : undefined
+    throw new Error(detail ?? `Erro ${response.status} ao carregar imagens`) 
   }
 
-  if (!dados || typeof dados !== 'object' || Array.isArray(dados)) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new Error('Resposta invalida de imagens')
   }
 
-  return dados as MapaImagensCategoria
+  return data as CategoryImageMap
 }
 
-function paraNumeroOuNulo(value: string) {
+function toNumberOrNull(value: string) {
   /*
    * Converte input de texto em numero ou null.
    * Evita NaN propagando valores vazios.
    */
-  const normalizado = value.trim()
-  if (!normalizado) {
+  const normalized = value.trim()
+  if (!normalized) {
     return null
   }
 
-  const convertido = Number(normalizado)
-  return Number.isNaN(convertido) ? null : convertido
+  const converted = Number(normalized)
+  return Number.isNaN(converted) ? null : converted
 }
 
-function normalizarBase(base: string) {
+function normalizeBase(base: string) {
   /*
    * Remove barra final de URLs base.
    * Mantem consistencia ao montar endpoints.
@@ -183,387 +183,383 @@ function normalizarBase(base: string) {
   return base.endsWith('/') ? base.slice(0, -1) : base
 }
 
-async function buscarComFallback(path: string, init?: RequestInit) {
+async function fetchWithFallback(path: string, init?: RequestInit) {
   /*
    * Tenta varios endpoints ate encontrar um valido.
    * Retorna a ultima resposta/erro se nenhum funcionar.
    */
-  let ultimaResposta: Response | null = null
-  let ultimoErro: Error | null = null
+  let lastResponse: Response | null = null
+  let lastError: Error | null = null
 
-  for (const base of API_CANDIDATAS) {
+  for (const base of API_CANDIDATES) {
     try {
-      const resposta = await fetch(`${normalizarBase(base)}${path}`, init)
-      if (resposta.ok) {
-        return resposta
+      const response = await fetch(`${normalizeBase(base)}${path}`, init)
+      if (response.ok) {
+        return response
       }
 
-      ultimaResposta = resposta
-    } catch (erro) {
-      if (erro instanceof Error) {
-        ultimoErro = erro
+      lastResponse = response
+    } catch (error) {
+      if (error instanceof Error) {
+        lastError = error
       }
     }
   }
 
-  if (ultimaResposta) {
-    return ultimaResposta
+  if (lastResponse) {
+    return lastResponse
   }
 
-  if (ultimoErro) {
-    throw ultimoErro
+  if (lastError) {
+    throw lastError
   }
 
   throw new Error('Nao foi possivel conectar na API')
 }
 
-function PainelCatalogo() {
+function CatalogPanel() {
   /*
    * Componente principal do painel do catalogo.
    * Orquestra filtros, detalhes, CRUD e chamadas da API.
    */
-  const [itens, setItens] = useState<ProdutoItemLista[]>([])
+  const [items, setItems] = useState<ProductListItem[]>([])
   const [total, setTotal] = useState(0)
-  const [carregando, setCarregando] = useState(false)
-  const [erro, setErro] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const [busca, setBusca] = useState('')
-  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<string[]>([])
-  const [notaMinima, setNotaMinima] = useState('')
-  const [precoMinimo, setPrecoMinimo] = useState('')
-  const [precoMaximo, setPrecoMaximo] = useState('')
-  const [buscaDebounce, setBuscaDebounce] = useState('')
-  const [categoriasDebounce, setCategoriasDebounce] = useState<string[]>([])
-  const [notaMinimaDebounce, setNotaMinimaDebounce] = useState('')
-  const [precoMinimoDebounce, setPrecoMinimoDebounce] = useState('')
-  const [precoMaximoDebounce, setPrecoMaximoDebounce] = useState('')
-  const [pagina, setPagina] = useState(1)
-  const [todasCategorias, setTodasCategorias] = useState<string[]>([])
-  const [erroCategorias, setErroCategorias] = useState<string | null>(null)
-  const [imagensCategorias, setImagensCategorias] = useState<MapaImagensCategoria>({})
-  const [categoriasAberto, setCategoriasAberto] = useState(false)
+  const [search, setSearch] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [minRating, setMinRating] = useState('')
+  const [minPrice, setMinPrice] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [debouncedCategories, setDebouncedCategories] = useState<string[]>([])
+  const [debouncedMinRating, setDebouncedMinRating] = useState('')
+  const [debouncedMinPrice, setDebouncedMinPrice] = useState('')
+  const [debouncedMaxPrice, setDebouncedMaxPrice] = useState('')
+  const [page, setPage] = useState(1)
+  const [allCategories, setAllCategories] = useState<string[]>([])
+  const [categoriesError, setCategoriesError] = useState<string | null>(null)
+  const [categoryImages, setCategoryImages] = useState<CategoryImageMap>({})
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false)
 
-  const [idSelecionado, setIdSelecionado] = useState<string | null>(null)
-  const [detalhe, setDetalhe] = useState<ProdutoDetalhe | null>(null)
-  const [carregandoDetalhe, setCarregandoDetalhe] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detail, setDetail] = useState<ProductDetail | null>(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
 
-  const [formularioAberto, setFormularioAberto] = useState(false)
-  const [idEdicao, setIdEdicao] = useState<string | null>(null)
-  const [formulario, setFormulario] = useState<DadosProduto>(formularioVazio)
-  const [enviando, setEnviando] = useState(false)
-  const [mostrarSugestoesCategoria, setMostrarSugestoesCategoria] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [formData, setFormData] = useState<ProductFormData>(emptyForm)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false)
 
-  const totalPaginas = Math.max(1, Math.ceil(total / TAMANHO_PAGINA))
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  async function carregarProdutos(paginaAtual = pagina) {
+  async function loadProducts(currentPage = page) {
     /*
      * Carrega a listagem com filtros e paginacao.
      * Atualiza estado de itens, total e categorias.
      */
-    setCarregando(true)
-    setErro(null)
+    setIsLoading(true)
+    setError(null)
 
-    const parametros = new URLSearchParams({
-      skip: String((paginaAtual - 1) * TAMANHO_PAGINA),
-      limit: String(TAMANHO_PAGINA),
+    const params = new URLSearchParams({
+      skip: String((currentPage - 1) * PAGE_SIZE),
+      limit: String(PAGE_SIZE),
     })
 
-    if (buscaDebounce.trim()) {
-      parametros.set('busca', buscaDebounce.trim())
+    if (debouncedSearch.trim()) {
+      params.set('busca', debouncedSearch.trim())
     }
-    if (categoriasDebounce.length > 0) {
-      categoriasDebounce.forEach((categoria) => {
-        if (categoria.trim()) {
-          parametros.append('categoria', categoria.trim())
+    if (debouncedCategories.length > 0) {
+      debouncedCategories.forEach((category) => {
+        if (category.trim()) {
+          params.append('categoria', category.trim())
         }
       })
     }
-    if (notaMinimaDebounce.trim()) {
-      parametros.set('nota_min', notaMinimaDebounce.trim())
+    if (debouncedMinRating.trim()) {
+      params.set('nota_min', debouncedMinRating.trim())
     }
-    if (precoMinimoDebounce.trim()) {
-      parametros.set('preco_min', precoMinimoDebounce.trim())
+    if (debouncedMinPrice.trim()) {
+      params.set('preco_min', debouncedMinPrice.trim())
     }
-    if (precoMaximoDebounce.trim()) {
-      parametros.set('preco_max', precoMaximoDebounce.trim())
+    if (debouncedMaxPrice.trim()) {
+      params.set('preco_max', debouncedMaxPrice.trim())
     }
 
     try {
-      const dados = await buscarJson<ProdutoRespostaLista>(`/produtos?${parametros.toString()}`)
-      setItens(dados.itens)
-      setTotal(dados.total)
+      const data = await fetchJson<ProductListResponse>(`/produtos?${params.toString()}`)
+      setItems(data.itens)
+      setTotal(data.total)
 
-      if (todasCategorias.length === 0) {
+      if (allCategories.length === 0) {
         try {
-          const categorias = await buscarCategorias()
-          console.info('categorias:total', categorias.length)
-          setTodasCategorias(categorias)
-          setErroCategorias(null)
+          const categories = await fetchCategories()
+          console.info('categorias:total', categories.length)
+          setAllCategories(categories)
+          setCategoriesError(null)
         } catch (err) {
-          setErroCategorias(err instanceof Error ? err.message : 'Erro ao carregar categorias')
-          const alternativa = Array.from(
-            new Set(dados.itens.map((item) => item.categoria_produto).filter(Boolean)),
+          setCategoriesError(err instanceof Error ? err.message : 'Erro ao carregar categorias')
+          const fallback = Array.from(
+            new Set(data.itens.map((item) => item.categoria_produto).filter(Boolean)),
           ).sort()
-          if (alternativa.length > 0) {
-            setTodasCategorias(alternativa)
+          if (fallback.length > 0) {
+            setAllCategories(fallback)
           }
         }
       }
 
-      if (dados.itens.length === 0) {
-        setIdSelecionado(null)
-        setDetalhe(null)
+      if (data.itens.length === 0) {
+        setSelectedId(null)
+        setDetail(null)
         return
       }
 
-      const temSelecionado = idSelecionado
-        ? dados.itens.some((item) => item.id_produto === idSelecionado)
+      const hasSelected = selectedId
+        ? data.itens.some((item) => item.id_produto === selectedId)
         : false
 
-      if (!temSelecionado) {
-        setIdSelecionado(dados.itens[0].id_produto)
+      if (!hasSelected) {
+        setSelectedId(data.itens[0].id_produto)
       }
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro inesperado')
+      setError(err instanceof Error ? err.message : 'Erro inesperado')
     } finally {
-      setCarregando(false)
+      setIsLoading(false)
     }
   }
 
-  async function carregarDetalhe(produtoId: string) {
+  async function loadDetail(productId: string) {
     /*
      * Carrega detalhes do produto selecionado.
      * Inclui historico de vendas e avaliacoes.
      */
-    setCarregandoDetalhe(true)
-    setErro(null)
+    setIsDetailLoading(true)
+    setError(null)
     try {
-      const dados = await buscarJson<ProdutoDetalhe>(`/produtos/${produtoId}`)
-      setDetalhe(dados)
+      const data = await fetchJson<ProductDetail>(`/produtos/${productId}`)
+      setDetail(data)
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao carregar detalhes')
-      setDetalhe(null)
+      setError(err instanceof Error ? err.message : 'Erro ao carregar detalhes')
+      setDetail(null)
     } finally {
-      setCarregandoDetalhe(false)
+      setIsDetailLoading(false)
     }
   }
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setBuscaDebounce(busca)
-      setCategoriasDebounce(categoriasSelecionadas)
-      setNotaMinimaDebounce(notaMinima)
-      setPrecoMinimoDebounce(precoMinimo)
-      setPrecoMaximoDebounce(precoMaximo)
+      setDebouncedSearch(search)
+      setDebouncedCategories(selectedCategories)
+      setDebouncedMinRating(minRating)
+      setDebouncedMinPrice(minPrice)
+      setDebouncedMaxPrice(maxPrice)
     }, 300)
 
     return () => {
       window.clearTimeout(timeout)
     }
-  }, [busca, categoriasSelecionadas, notaMinima, precoMinimo, precoMaximo])
+  }, [search, selectedCategories, minRating, minPrice, maxPrice])
 
   useEffect(() => {
-    void carregarProdutos(1)
-    setPagina(1)
+    void loadProducts(1)
+    setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buscaDebounce, categoriasDebounce, notaMinimaDebounce, precoMinimoDebounce, precoMaximoDebounce])
+  }, [debouncedSearch, debouncedCategories, debouncedMinRating, debouncedMinPrice, debouncedMaxPrice])
 
 
   useEffect(() => {
-    async function carregarCategorias() {
+    async function loadCategories() {
       try {
-        const dados = await buscarCategorias()
-        console.info('categorias:total', dados.length)
-        setTodasCategorias(dados)
-        setErroCategorias(null)
+        const data = await fetchCategories()
+        console.info('categorias:total', data.length)
+        setAllCategories(data)
+        setCategoriesError(null)
       } catch (err) {
-        setErroCategorias(err instanceof Error ? err.message : 'Erro ao carregar categorias')
+        setCategoriesError(err instanceof Error ? err.message : 'Erro ao carregar categorias')
       }
     }
 
-    void carregarCategorias()
+    void loadCategories()
   }, [])
 
   useEffect(() => {
-    async function carregarImagensCategorias() {
+    async function loadCategoryImages() {
       try {
-        const dados = await buscarImagensCategorias()
-        setImagensCategorias(dados)
+        const data = await fetchCategoryImages()
+        setCategoryImages(data)
       } catch (err) {
         console.info('categorias:imagens', err)
       }
     }
 
-    void carregarImagensCategorias()
+    void loadCategoryImages()
   }, [])
 
   useEffect(() => {
-    if (!idSelecionado) {
+    if (!selectedId) {
       return
     }
-    void carregarDetalhe(idSelecionado)
-  }, [idSelecionado])
+    void loadDetail(selectedId)
+  }, [selectedId])
 
-  function abrirFormularioCriacao() {
+  function openCreateForm() {
     /*
      * Abre o formulario de criacao com valores vazios.
      * Reseta estado de edicao e sugestoes.
      */
-    setIdEdicao(null)
-    setFormulario(formularioVazio)
-    setMostrarSugestoesCategoria(false)
-    setFormularioAberto(true)
+    setEditingId(null)
+    setFormData(emptyForm)
+    setShowCategorySuggestions(false)
+    setIsFormOpen(true)
   }
 
-  function abrirFormularioEdicao(item: ProdutoItemLista) {
+  function openEditForm(item: ProductListItem) {
     /*
      * Abre o formulario de edicao com dados do item.
      * Usa medidas do detalhe quando disponiveis.
      */
-    setIdEdicao(item.id_produto)
-    setFormulario({
+    setEditingId(item.id_produto)
+    setFormData({
       nome_produto: item.nome_produto,
       categoria_produto: item.categoria_produto,
       descricao_produto: item.descricao_produto,
       preco_base: item.preco_base,
-      peso_produto_gramas: detalhe?.medidas.peso_produto_gramas ?? null,
-      comprimento_centimetros: detalhe?.medidas.comprimento_centimetros ?? null,
-      altura_centimetros: detalhe?.medidas.altura_centimetros ?? null,
-      largura_centimetros: detalhe?.medidas.largura_centimetros ?? null,
+      peso_produto_gramas: detail?.medidas.peso_produto_gramas ?? null,
+      comprimento_centimetros: detail?.medidas.comprimento_centimetros ?? null,
+      altura_centimetros: detail?.medidas.altura_centimetros ?? null,
+      largura_centimetros: detail?.medidas.largura_centimetros ?? null,
     })
-    setMostrarSugestoesCategoria(false)
-    setFormularioAberto(true)
+    setShowCategorySuggestions(false)
+    setIsFormOpen(true)
   }
 
-  function selecionarSugestaoCategoria(value: string) {
+  function selectCategorySuggestion(value: string) {
     /*
      * Aplica a sugestao de categoria ao formulario.
      * Fecha o painel de sugestoes.
      */
-    setFormulario((prev) => ({ ...prev, categoria_produto: value }))
-    setMostrarSugestoesCategoria(false)
+    setFormData((prev) => ({ ...prev, categoria_produto: value }))
+    setShowCategorySuggestions(false)
   }
 
-  function alternarCategoria(value: string) {
-    /*
-     * Alterna categoria selecionada nos filtros.
-     * Remove se ja estiver marcada, adiciona caso contrario.
-     */
-    setCategoriasSelecionadas((prev) =>
+  function toggleCategory(value: string) {
+    setSelectedCategories((prev) =>
       prev.includes(value)
         ? prev.filter((current) => current !== value)
         : [...prev, value],
     )
   }
 
-  async function aoEnviarFormulario(event: FormEvent<HTMLFormElement>) {
+  async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
     /*
      * Envia criacao/edicao para a API.
      * Recarrega a lista ao concluir com sucesso.
      */
     event.preventDefault()
-    setEnviando(true)
-    setErro(null)
+    setIsSubmitting(true)
+    setError(null)
 
-    const dados: DadosProduto = {
-      nome_produto: formulario.nome_produto.trim(),
-      categoria_produto: formulario.categoria_produto.trim(),
-      descricao_produto: formulario.descricao_produto?.trim() || null,
-      preco_base: formulario.preco_base,
-      peso_produto_gramas: formulario.peso_produto_gramas,
-      comprimento_centimetros: formulario.comprimento_centimetros,
-      altura_centimetros: formulario.altura_centimetros,
-      largura_centimetros: formulario.largura_centimetros,
+    const payload: ProductFormData = {
+      nome_produto: formData.nome_produto.trim(),
+      categoria_produto: formData.categoria_produto.trim(),
+      descricao_produto: formData.descricao_produto?.trim() || null,
+      preco_base: formData.preco_base,
+      peso_produto_gramas: formData.peso_produto_gramas,
+      comprimento_centimetros: formData.comprimento_centimetros,
+      altura_centimetros: formData.altura_centimetros,
+      largura_centimetros: formData.largura_centimetros,
     }
 
     try {
-      const ehEdicao = Boolean(idEdicao)
+      const isEditing = Boolean(editingId)
 
-      const resposta = await buscarComFallback(ehEdicao ? `/produtos/${idEdicao}` : '/produtos', {
-        method: ehEdicao ? 'PUT' : 'POST',
+      const response = await fetchWithFallback(isEditing ? `/produtos/${editingId}` : '/produtos', {
+        method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dados),
+        body: JSON.stringify(payload),
       })
 
-      if (!resposta.ok) {
-        const corpo = await resposta.json().catch(() => null)
-        const mensagemDetalhe = corpo?.detail ?? 'Nao foi possivel salvar o produto'
-        throw new Error(mensagemDetalhe)
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        const detailMessage = body?.detail ?? 'Nao foi possivel salvar o produto'
+        throw new Error(detailMessage)
       }
 
-      setFormularioAberto(false)
-      await carregarProdutos(pagina)
+      setIsFormOpen(false)
+      await loadProducts(page)
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao salvar produto')
+      setError(err instanceof Error ? err.message : 'Erro ao salvar produto')
     } finally {
-      setEnviando(false)
+      setIsSubmitting(false)
     }
   }
 
-  async function aoExcluirProduto(id: string) {
+  async function handleDeleteProduct(id: string) {
     /*
      * Remove produto via API apos confirmacao.
      * Recarrega a listagem para refletir a exclusao.
      */
-    const confirmado = window.confirm('Deseja remover este produto?')
-    if (!confirmado) {
+    const confirmed = window.confirm('Deseja remover este produto?')
+    if (!confirmed) {
       return
     }
 
-    setErro(null)
+    setError(null)
     try {
-      const resposta = await buscarComFallback(`/produtos/${id}`, {
+      const response = await fetchWithFallback(`/produtos/${id}`, {
         method: 'DELETE',
       })
 
-      if (!resposta.ok) {
-        const corpo = await resposta.json().catch(() => null)
-        throw new Error(corpo?.detail ?? 'Nao foi possivel remover o produto')
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.detail ?? 'Nao foi possivel remover o produto')
       }
 
-      if (idSelecionado === id) {
-        setIdSelecionado(null)
+      if (selectedId === id) {
+        setSelectedId(null)
       }
 
-      await carregarProdutos(pagina)
+      await loadProducts(page)
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao remover produto')
+      setError(err instanceof Error ? err.message : 'Erro ao remover produto')
     }
   }
 
-  function formatarMoeda(valor: number | null) {
+  function formatCurrency(value: number | null) {
     /*
      * Formata valores monetarios no padrao pt-BR.
      * Retorna "-" quando o valor e ausente.
      */
-    if (valor == null) {
+    if (value == null) {
       return '-'
     }
 
-    return valor.toLocaleString('pt-BR', {
+    return value.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     })
   }
 
-  function formatarData(valor: string | null) {
+  function formatDate(value: string | null) {
     /*
      * Converte datas ISO para exibicao pt-BR.
      * Retorna "-" quando o valor e vazio.
      */
-    if (!valor) {
+    if (!value) {
       return '-'
     }
 
-    return new Date(valor).toLocaleDateString('pt-BR')
+    return new Date(value).toLocaleDateString('pt-BR')
   }
 
-  function iniciaisCategoria(valor: string) {
+  function categoryInitials(value: string) {
     /*
      * Gera iniciais de categoria para o placeholder.
      * Usa ate duas partes separadas por underscore.
      */
-    return valor
+    return value
       .split('_')
       .filter(Boolean)
       .slice(0, 2)
@@ -581,7 +577,7 @@ function PainelCatalogo() {
             Controle produtos, avaliacoes e historico de vendas em um unico lugar.
           </p>
         </div>
-        <button className="primary" onClick={abrirFormularioCriacao}>
+        <button className="primary" onClick={openCreateForm}>
           Novo produto
         </button>
       </header>
@@ -590,50 +586,43 @@ function PainelCatalogo() {
         <input
           type="text"
           placeholder="Buscar por nome, categoria ou descricao"
-          value={busca}
-          onChange={(event) => setBusca(event.target.value)}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
         />
 
         <div className="multi-select">
           <button
             type="button"
-            className={`toggle ${categoriasAberto ? 'active' : ''}`}
-            onClick={() => setCategoriasAberto((prev) => !prev)}
-            aria-expanded={categoriasAberto}
+            className={`toggle ${isCategoryOpen ? 'active' : ''}`}
+            onClick={() => setIsCategoryOpen((prev) => !prev)}
+            aria-expanded={isCategoryOpen}
             aria-controls="category-panel"
           >
             Categorias
             <span className="toggle-count">
-              {categoriasSelecionadas.length > 0 ? categoriasSelecionadas.length : 'Todas'}
+              {selectedCategories.length > 0 ? selectedCategories.length : 'Todas'}
             </span>
           </button>
-          {categoriasAberto && (
+
+          {isCategoryOpen && (
             <div className="multi-select-panel" id="category-panel">
               <div className="category-options" role="listbox" aria-multiselectable="true">
-                {todasCategorias.map((categoriaAtual) => {
-                  const ativo = categoriasSelecionadas.includes(categoriaAtual)
+                {allCategories.map((currentCategory) => {
+                  const isActive = selectedCategories.includes(currentCategory)
                   return (
                     <button
-                      key={categoriaAtual}
+                      key={currentCategory}
                       type="button"
                       role="option"
-                      aria-selected={ativo}
-                      className={`category-option ${ativo ? 'active' : ''}`}
-                      onClick={() => alternarCategoria(categoriaAtual)}
+                      aria-selected={isActive}
+                      className={`category-option ${isActive ? 'active' : ''}`}
+                      onClick={() => toggleCategory(currentCategory)}
                     >
-                      {categoriaAtual}
+                      {currentCategory}
                     </button>
                   )
                 })}
               </div>
-              <button
-                type="button"
-                className="clear"
-                onClick={() => setCategoriasSelecionadas([])}
-                disabled={categoriasSelecionadas.length === 0}
-              >
-                Limpar
-              </button>
             </div>
           )}
         </div>
@@ -644,8 +633,8 @@ function PainelCatalogo() {
           max="5"
           step="0.1"
           placeholder="Nota minima"
-          value={notaMinima}
-          onChange={(event) => setNotaMinima(event.target.value)}
+          value={minRating}
+          onChange={(event) => setMinRating(event.target.value)}
         />
 
         <div className="price-range">
@@ -654,32 +643,30 @@ function PainelCatalogo() {
             min="0"
             step="0.01"
             placeholder="Preco minimo"
-            value={precoMinimo}
-            onChange={(event) => setPrecoMinimo(event.target.value)}
+            value={minPrice}
+            onChange={(event) => setMinPrice(event.target.value)}
           />
           <input
             type="number"
             min="0"
             step="0.01"
             placeholder="Preco maximo"
-            value={precoMaximo}
-            onChange={(event) => setPrecoMaximo(event.target.value)}
+            value={maxPrice}
+            onChange={(event) => setMaxPrice(event.target.value)}
           />
         </div>
       </section>
 
       <section className="category-chips" aria-label="Categorias selecionadas">
-        {categoriasSelecionadas.length > 0 ? (
-          categoriasSelecionadas.map((categoria) => (
+        {selectedCategories.length > 0 ? (
+          selectedCategories.map((category) => (
             <button
-              key={categoria}
+              key={category}
               type="button"
               className="chip active"
-              onClick={() =>
-                setCategoriasSelecionadas((prev) => prev.filter((current) => current !== categoria))
-              }
+              onClick={() => toggleCategory(category)}
             >
-              {categoria}
+              {category}
             </button>
           ))
         ) : (
@@ -687,8 +674,8 @@ function PainelCatalogo() {
         )}
       </section>
 
-      {erro && <p className="error">{erro}</p>}
-      {erroCategorias && <p className="error">{erroCategorias}</p>}
+      {error && <p className="error">{error}</p>}
+      {categoriesError && <p className="error">{categoriesError}</p>}
 
       <section className="content-grid">
         <article className="catalog-card">
@@ -697,28 +684,28 @@ function PainelCatalogo() {
             <span>{total} registros</span>
           </div>
 
-          {carregando ? (
+          {isLoading ? (
             <p>Carregando produtos...</p>
-          ) : itens.length === 0 ? (
+          ) : items.length === 0 ? (
             <p>Nenhum produto encontrado para os filtros selecionados.</p>
           ) : (
             <ul className="product-list">
-              {itens.map((item) => (
+              {items.map((item) => (
                 <li
                   key={item.id_produto}
-                  className={item.id_produto === idSelecionado ? 'active' : ''}
-                  onClick={() => setIdSelecionado(item.id_produto)}
+                  className={item.id_produto === selectedId ? 'active' : ''}
+                  onClick={() => setSelectedId(item.id_produto)}
                 >
                   <div className="product-card">
                     <div className="product-thumb">
-                      {imagensCategorias[item.categoria_produto] ? (
+                      {categoryImages[item.categoria_produto] ? (
                         <img
-                          src={imagensCategorias[item.categoria_produto]}
+                          src={categoryImages[item.categoria_produto]}
                           alt={item.categoria_produto}
                           loading="lazy"
                         />
                       ) : (
-                        <span>{iniciaisCategoria(item.categoria_produto)}</span>
+                        <span>{categoryInitials(item.categoria_produto)}</span>
                       )}
                     </div>
                     <div className="product-main">
@@ -730,7 +717,7 @@ function PainelCatalogo() {
                       </div>
                       <p>{item.categoria_produto}</p>
                       <div className="metrics">
-                        <span>{formatarMoeda(item.preco_base)}</span>
+                        <span>{formatCurrency(item.preco_base)}</span>
                         <span>
                           {item.media_avaliacoes != null ? `${item.media_avaliacoes.toFixed(1)} / 5` : 'Sem nota'}
                         </span>
@@ -742,8 +729,8 @@ function PainelCatalogo() {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation()
-                        setIdSelecionado(item.id_produto)
-                        abrirFormularioEdicao(item)
+                        setSelectedId(item.id_produto)
+                        openEditForm(item)
                       }}
                     >
                       Editar
@@ -753,7 +740,7 @@ function PainelCatalogo() {
                       className="danger"
                       onClick={(event) => {
                         event.stopPropagation()
-                        void aoExcluirProduto(item.id_produto)
+                        void handleDeleteProduct(item.id_produto)
                       }}
                     >
                       Excluir
@@ -768,25 +755,25 @@ function PainelCatalogo() {
             <button
               type="button"
               onClick={() => {
-                const proximaPagina = Math.max(1, pagina - 1)
-                setPagina(proximaPagina)
-                void carregarProdutos(proximaPagina)
+                const nextPage = Math.max(1, page - 1)
+                setPage(nextPage)
+                void loadProducts(nextPage)
               }}
-              disabled={pagina <= 1}
+              disabled={page <= 1}
             >
               Anterior
             </button>
             <span>
-              Pagina {pagina} de {totalPaginas}
+              Pagina {page} de {totalPages}
             </span>
             <button
               type="button"
               onClick={() => {
-                const proximaPagina = Math.min(totalPaginas, pagina + 1)
-                setPagina(proximaPagina)
-                void carregarProdutos(proximaPagina)
+                const nextPage = Math.min(totalPages, page + 1)
+                setPage(nextPage)
+                void loadProducts(nextPage)
               }}
-              disabled={pagina >= totalPaginas}
+              disabled={page >= totalPages}
             >
               Proxima
             </button>
@@ -798,29 +785,29 @@ function PainelCatalogo() {
             <h2>Detalhes</h2>
           </div>
 
-          {carregandoDetalhe ? (
+          {isDetailLoading ? (
             <p>Carregando detalhes...</p>
-          ) : !detalhe ? (
+          ) : !detail ? (
             <p>Selecione um produto para ver as informacoes completas.</p>
           ) : (
             <>
               <div className="summary-row">
                 <div className="detail-hero">
                   <div className="detail-thumb">
-                    {imagensCategorias[detalhe.categoria_produto] ? (
+                    {categoryImages[detail.categoria_produto] ? (
                       <img
-                        src={imagensCategorias[detalhe.categoria_produto]}
-                        alt={detalhe.categoria_produto}
+                        src={categoryImages[detail.categoria_produto]}
+                        alt={detail.categoria_produto}
                         loading="lazy"
                       />
                     ) : (
-                      <span>{iniciaisCategoria(detalhe.categoria_produto)}</span>
+                      <span>{categoryInitials(detail.categoria_produto)}</span>
                     )}
                   </div>
                   <div>
-                    <h3>{detalhe.nome_produto}</h3>
-                    <p>{detalhe.categoria_produto}</p>
-                    <p>{detalhe.descricao_produto || 'Sem descricao cadastrada'}</p>
+                    <h3>{detail.nome_produto}</h3>
+                    <p>{detail.categoria_produto}</p>
+                    <p>{detail.descricao_produto || 'Sem descricao cadastrada'}</p>
                   </div>
                 </div>
               </div>
@@ -828,32 +815,32 @@ function PainelCatalogo() {
               <div className="stat-grid">
                 <div>
                   <span>Preco base</span>
-                  <strong>{formatarMoeda(detalhe.preco_base)}</strong>
+                  <strong>{formatCurrency(detail.preco_base)}</strong>
                 </div>
                 <div>
                   <span>Media de avaliacoes</span>
                   <strong>
-                    {detalhe.media_avaliacoes != null ? `${detalhe.media_avaliacoes.toFixed(2)} / 5` : 'Sem nota'}
+                    {detail.media_avaliacoes != null ? `${detail.media_avaliacoes.toFixed(2)} / 5` : 'Sem nota'}
                   </strong>
                 </div>
                 <div>
                   <span>Total de vendas</span>
-                  <strong>{detalhe.total_vendas}</strong>
+                  <strong>{detail.total_vendas}</strong>
                 </div>
               </div>
 
               <div className="measures">
                 <h4>Medidas tecnicas</h4>
-                <p>Peso: {detalhe.medidas.peso_produto_gramas ?? '-'} g</p>
-                <p>Comprimento: {detalhe.medidas.comprimento_centimetros ?? '-'} cm</p>
-                <p>Altura: {detalhe.medidas.altura_centimetros ?? '-'} cm</p>
-                <p>Largura: {detalhe.medidas.largura_centimetros ?? '-'} cm</p>
+                <p>Peso: {detail.medidas.peso_produto_gramas ?? '-'} g</p>
+                <p>Comprimento: {detail.medidas.comprimento_centimetros ?? '-'} cm</p>
+                <p>Altura: {detail.medidas.altura_centimetros ?? '-'} cm</p>
+                <p>Largura: {detail.medidas.largura_centimetros ?? '-'} cm</p>
               </div>
 
               <div className="tables">
                 <section>
                   <h4>Historico de vendas</h4>
-                  {detalhe.vendas_historico.length === 0 ? (
+                  {detail.vendas_historico.length === 0 ? (
                     <p>Sem vendas registradas.</p>
                   ) : (
                     <table>
@@ -867,12 +854,12 @@ function PainelCatalogo() {
                         </tr>
                       </thead>
                       <tbody>
-                        {detalhe.vendas_historico.map((venda) => (
+                        {detail.vendas_historico.map((venda) => (
                           <tr key={venda.id_pedido}>
                             <td>{venda.id_pedido}</td>
-                            <td>{formatarData(venda.data_pedido)}</td>
+                            <td>{formatDate(venda.data_pedido)}</td>
                             <td>{venda.quantidade_itens}</td>
-                            <td>{formatarMoeda(venda.valor_total)}</td>
+                            <td>{formatCurrency(venda.valor_total)}</td>
                             <td>{venda.status}</td>
                           </tr>
                         ))}
@@ -883,11 +870,11 @@ function PainelCatalogo() {
 
                 <section>
                   <h4>Avaliacoes</h4>
-                  {detalhe.avaliacoes.length === 0 ? (
+                  {detail.avaliacoes.length === 0 ? (
                     <p>Sem avaliacoes registradas.</p>
                   ) : (
                     <ul className="reviews">
-                      {detalhe.avaliacoes.map((avaliacao) => (
+                      {detail.avaliacoes.map((avaliacao) => (
                         <li key={avaliacao.id_avaliacao}>
                           <strong>{avaliacao.nota} / 5</strong>
                           <p>{avaliacao.titulo || 'Sem titulo'}</p>
@@ -903,18 +890,18 @@ function PainelCatalogo() {
         </article>
       </section>
 
-      {formularioAberto && (
-        <section className="modal-backdrop" onClick={() => setFormularioAberto(false)}>
-          <form className="product-form" onSubmit={aoEnviarFormulario} onClick={(event) => event.stopPropagation()}>
-            <h3>{idEdicao ? 'Editar produto' : 'Novo produto'}</h3>
+      {isFormOpen && (
+        <section className="modal-backdrop" onClick={() => setIsFormOpen(false)}>
+          <form className="product-form" onSubmit={handleFormSubmit} onClick={(event) => event.stopPropagation()}>
+            <h3>{editingId ? 'Editar produto' : 'Novo produto'}</h3>
 
             <label>
               Nome
               <input
                 type="text"
                 required
-                value={formulario.nome_produto}
-                onChange={(event) => setFormulario((prev) => ({ ...prev, nome_produto: event.target.value }))}
+                value={formData.nome_produto}
+                onChange={(event) => setFormData((prev) => ({ ...prev, nome_produto: event.target.value }))}
               />
             </label>
 
@@ -923,30 +910,30 @@ function PainelCatalogo() {
               <input
                 type="text"
                 required
-                value={formulario.categoria_produto}
+                value={formData.categoria_produto}
                 onChange={(event) => {
                   const value = event.target.value
-                  setFormulario((prev) => ({ ...prev, categoria_produto: value }))
-                  setMostrarSugestoesCategoria(Boolean(value.trim()))
+                  setFormData((prev) => ({ ...prev, categoria_produto: value }))
+                  setShowCategorySuggestions(Boolean(value.trim()))
                 }}
-                onFocus={() => setMostrarSugestoesCategoria(Boolean(formulario.categoria_produto.trim()))}
-                onBlur={() => window.setTimeout(() => setMostrarSugestoesCategoria(false), 120)}
+                onFocus={() => setShowCategorySuggestions(Boolean(formData.categoria_produto.trim()))}
+                onBlur={() => window.setTimeout(() => setShowCategorySuggestions(false), 120)}
               />
-              {mostrarSugestoesCategoria && (
+              {showCategorySuggestions && (
                 <div className="category-suggestions" role="listbox">
-                  {todasCategorias
-                    .filter((categoriaAtual) =>
-                      categoriaAtual.toLowerCase().includes(formulario.categoria_produto.toLowerCase()),
+                  {allCategories
+                    .filter((currentCategory) =>
+                      currentCategory.toLowerCase().includes(formData.categoria_produto.toLowerCase()),
                     )
                     .slice(0, 8)
-                    .map((categoriaAtual) => (
+                    .map((currentCategory) => (
                       <button
                         type="button"
-                        key={categoriaAtual}
+                        key={currentCategory}
                         className="category-suggestion"
-                        onMouseDown={() => selecionarSugestaoCategoria(categoriaAtual)}
+                        onMouseDown={() => selectCategorySuggestion(currentCategory)}
                       >
-                        {categoriaAtual}
+                        {currentCategory}
                       </button>
                     ))}
                 </div>
@@ -957,8 +944,8 @@ function PainelCatalogo() {
               Descricao
               <textarea
                 rows={3}
-                value={formulario.descricao_produto ?? ''}
-                onChange={(event) => setFormulario((prev) => ({ ...prev, descricao_produto: event.target.value }))}
+                value={formData.descricao_produto ?? ''}
+                onChange={(event) => setFormData((prev) => ({ ...prev, descricao_produto: event.target.value }))}
               />
             </label>
 
@@ -969,8 +956,8 @@ function PainelCatalogo() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formulario.preco_base ?? ''}
-                  onChange={(event) => setFormulario((prev) => ({ ...prev, preco_base: paraNumeroOuNulo(event.target.value) }))}
+                  value={formData.preco_base ?? ''}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, preco_base: toNumberOrNull(event.target.value) }))}
                 />
               </label>
               <label>
@@ -979,8 +966,8 @@ function PainelCatalogo() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formulario.peso_produto_gramas ?? ''}
-                  onChange={(event) => setFormulario((prev) => ({ ...prev, peso_produto_gramas: paraNumeroOuNulo(event.target.value) }))}
+                  value={formData.peso_produto_gramas ?? ''}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, peso_produto_gramas: toNumberOrNull(event.target.value) }))}
                 />
               </label>
               <label>
@@ -989,8 +976,8 @@ function PainelCatalogo() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formulario.comprimento_centimetros ?? ''}
-                  onChange={(event) => setFormulario((prev) => ({ ...prev, comprimento_centimetros: paraNumeroOuNulo(event.target.value) }))}
+                  value={formData.comprimento_centimetros ?? ''}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, comprimento_centimetros: toNumberOrNull(event.target.value) }))}
                 />
               </label>
               <label>
@@ -999,8 +986,8 @@ function PainelCatalogo() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formulario.altura_centimetros ?? ''}
-                  onChange={(event) => setFormulario((prev) => ({ ...prev, altura_centimetros: paraNumeroOuNulo(event.target.value) }))}
+                  value={formData.altura_centimetros ?? ''}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, altura_centimetros: toNumberOrNull(event.target.value) }))}
                 />
               </label>
               <label>
@@ -1009,18 +996,18 @@ function PainelCatalogo() {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formulario.largura_centimetros ?? ''}
-                  onChange={(event) => setFormulario((prev) => ({ ...prev, largura_centimetros: paraNumeroOuNulo(event.target.value) }))}
+                  value={formData.largura_centimetros ?? ''}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, largura_centimetros: toNumberOrNull(event.target.value) }))}
                 />
               </label>
             </div>
 
             <div className="form-actions">
-              <button type="button" onClick={() => setFormularioAberto(false)}>
+              <button type="button" onClick={() => setIsFormOpen(false)}>
                 Cancelar
               </button>
-              <button className="primary" type="submit" disabled={enviando}>
-                {enviando ? 'Salvando...' : 'Salvar'}
+              <button className="primary" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
           </form>
@@ -1030,4 +1017,4 @@ function PainelCatalogo() {
   )
 }
 
-export default PainelCatalogo
+export default CatalogPanel

@@ -1,18 +1,18 @@
 """Importa modelos para registro no SQLAlchemy e Alembic."""
 
 # Importa todos os models para que o SQLAlchemy e o Alembic os registrem
-from app.models.consumidor import Consumidor
-from app.models.produto import Produto
-from app.models.vendedor import Vendedor
-from app.models.pedido import Pedido
-from app.models.item_pedido import ItemPedido
-from app.models.avaliacao_pedido import AvaliacaoPedido
+from app.models.consumidor import Customer
+from app.models.produto import Product
+from app.models.vendedor import Seller
+from app.models.pedido import Order
+from app.models.item_pedido import OrderItem
+from app.models.avaliacao_pedido import OrderReview
 
 __all__ = [
-    "Consumidor",
-    "Produto",
-    "Vendedor",
-    "Pedido",
-    "ItemPedido",
-    "AvaliacaoPedido",
+    "Customer",
+    "Product",
+    "Seller",
+    "Order",
+    "OrderItem",
+    "OrderReview",
 ]

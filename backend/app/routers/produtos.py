@@ -1,4 +1,4 @@
-"""Endpoints de produtos: filtros, detalhes, categorias e CRUD."""
+"""Product endpoints: filters, details, categories, and CRUD."""
 
 from uuid import uuid4
 import csv
@@ -9,31 +9,31 @@ from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query,
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.database import obter_db
-from app.models.avaliacao_pedido import AvaliacaoPedido
-from app.models.item_pedido import ItemPedido
-from app.models.pedido import Pedido
-from app.models.produto import Produto
+from app.database import get_db
+from app.models.avaliacao_pedido import OrderReview
+from app.models.item_pedido import OrderItem
+from app.models.pedido import Order
+from app.models.produto import Product
 from app.schemas.produto import (
-    ItemAvaliacao,
-    ItemHistoricoVenda,
-    ProdutoAtualizacao,
-    ProdutoCriacao,
-    ProdutoItemLista,
-    ProdutoRespostaDetalhe,
-    ProdutoRespostaLista,
+    ReviewItem,
+    OrderHistoryItem,
+    ProductUpdate,
+    ProductCreate,
+    ProductListItem,
+    ProductDetailResponse,
+    ProductListResponse,
 )
 
 router = APIRouter(prefix="/produtos", tags=["Produtos"])
 
-_PADRAO_ID = "^[0-9a-f]{32}$"
+ID_PATTERN = "^[0-9a-f]{32}$"
 
 
 # ---------------------------------------------------------------------------
 # Helpers internos
 # ---------------------------------------------------------------------------
 
-def _arredondar_2(value: float | None) -> float | None:
+def _round_2(value: float | None) -> float | None:
     """
     Arredonda valores numericos para 2 casas decimais.
     Preserva None quando nao ha valor calculado.
@@ -41,36 +41,36 @@ def _arredondar_2(value: float | None) -> float | None:
     return round(value, 2) if value is not None else None
 
 
-def _nome_normalizado(coluna):
+def _normalized_name(column):
     """
     Normaliza o nome do produto removendo aspas e espacos duplicados.
     Ajuda a agrupar produtos semelhantes com grafias inconsistentes.
     """
-    return func.trim(func.replace(func.replace(coluna, '"', ""), "  ", " "))
+    return func.trim(func.replace(func.replace(column, '"', ""), "  ", " "))
 
 
-def _obter_produto_ou_404(id_produto: str, db: Session) -> Produto:
+def _get_product_or_404(product_id: str, db: Session) -> Product:
     """
     Busca um produto pelo id, garantindo resposta 404 se nao existir.
     Evita repeticao de logica de validacao nas rotas.
     """
-    produto = db.get(Produto, id_produto)
-    if not produto:
+    product = db.get(Product, product_id)
+    if not product:
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
-    return produto
+    return product
 
 
-def _produto_para_item_lista(produto: Produto) -> ProdutoItemLista:
+def _product_to_list_item(product: Product) -> ProductListItem:
     """
     Converte um Produto em um item resumido do catalogo.
     Mantem valores essenciais para listagens e respostas de CRUD.
     """
-    return ProdutoItemLista(
-        id_produto=produto.id_produto,
-        nome_produto=produto.nome_produto,
-        categoria_produto=produto.categoria_produto,
-        descricao_produto=produto.descricao_produto,
-        preco_base=produto.preco_base,
+    return ProductListItem(
+        id_produto=product.product_id,
+        nome_produto=product.product_name,
+        categoria_produto=product.product_category,
+        descricao_produto=product.product_description,
+        preco_base=product.base_price,
         media_avaliacoes=None,
         total_vendas=0,
     )
@@ -81,118 +81,133 @@ def _produto_para_item_lista(produto: Produto) -> ProdutoItemLista:
 # ---------------------------------------------------------------------------
 
 
-def _agrupar_produtos_base():
+def _group_products_base():
     """
     Monta um CTE com produtos agrupados por nome e categoria.
     Calcula medias e contagens para suportar listagens agregadas.
     """
-    nome_normalizado = _nome_normalizado(Produto.nome_produto)
+    normalized_name = _normalized_name(Product.product_name)
     return (
         select(
-            func.min(Produto.id_produto).label("id_produto"),
-            nome_normalizado.label("nome_produto"),
-            Produto.categoria_produto.label("categoria_produto"),
-            func.max(Produto.descricao_produto).label("descricao_produto"),
-            func.avg(Produto.preco_base).label("preco_base"),
-            func.avg(Produto.peso_produto_gramas).label("peso_produto_gramas"),
-            func.avg(Produto.comprimento_centimetros).label("comprimento_centimetros"),
-            func.avg(Produto.altura_centimetros).label("altura_centimetros"),
-            func.avg(Produto.largura_centimetros).label("largura_centimetros"),
-            func.count(Produto.id_produto).label("quantidade_registros"),
+            func.min(Product.product_id).label("id_produto"),
+            normalized_name.label("nome_produto"),
+            Product.product_category.label("categoria_produto"),
+            func.max(Product.product_description).label("descricao_produto"),
+            func.avg(Product.base_price).label("preco_base"),
+            func.avg(Product.product_weight_grams).label("peso_produto_gramas"),
+            func.avg(Product.length_cm).label("comprimento_centimetros"),
+            func.avg(Product.height_cm).label("altura_centimetros"),
+            func.avg(Product.width_cm).label("largura_centimetros"),
+            func.count(Product.product_id).label("quantidade_registros"),
         )
-        .select_from(Produto)
-        .group_by(nome_normalizado, Produto.categoria_produto)
+        .select_from(Product)
+        .group_by(normalized_name, Product.product_category)
         .cte("produtos_agrupados")
     )
 
 
-def _subquery_media_avaliacao_agrupada():
+def _subquery_grouped_review_average():
     """
     Calcula a media de avaliacoes por nome normalizado e categoria.
     Usa joins entre itens, pedidos e avaliacoes.
     """
-    nome_normalizado = _nome_normalizado(Produto.nome_produto)
+    normalized_name = _normalized_name(Product.product_name)
     return (
         select(
-            nome_normalizado.label("nome_produto"),
-            Produto.categoria_produto.label("categoria_produto"),
-            func.avg(AvaliacaoPedido.avaliacao).label("media_avaliacoes"),
+            normalized_name.label("nome_produto"),
+            Product.product_category.label("categoria_produto"),
+            func.avg(OrderReview.rating).label("media_avaliacoes"),
         )
-        .select_from(ItemPedido)
-        .join(Produto, Produto.id_produto == ItemPedido.id_produto)
-        .join(Pedido, Pedido.id_pedido == ItemPedido.id_pedido)
-        .join(AvaliacaoPedido, AvaliacaoPedido.id_pedido == Pedido.id_pedido)
-        .group_by(nome_normalizado, Produto.categoria_produto)
+        .select_from(OrderItem)
+        .join(Product, Product.product_id == OrderItem.product_id)
+        .join(Order, Order.order_id == OrderItem.order_id)
+        .join(OrderReview, OrderReview.order_id == Order.order_id)
+        .group_by(normalized_name, Product.product_category)
         .subquery()
     )
 
 
-def _subquery_total_vendas_agrupadas():
+def _subquery_grouped_total_sales():
     """
     Conta a quantidade de vendas por nome normalizado e categoria.
     A contagem considera itens de pedido registrados.
     """
-    nome_normalizado = _nome_normalizado(Produto.nome_produto)
+    normalized_name = _normalized_name(Product.product_name)
     return (
         select(
-            nome_normalizado.label("nome_produto"),
-            Produto.categoria_produto.label("categoria_produto"),
-            func.count(ItemPedido.id_item).label("total_vendas"),
+            normalized_name.label("nome_produto"),
+            Product.product_category.label("categoria_produto"),
+            func.count(OrderItem.item_id).label("total_vendas"),
         )
-        .select_from(ItemPedido)
-        .join(Produto, Produto.id_produto == ItemPedido.id_produto)
-        .group_by(nome_normalizado, Produto.categoria_produto)
+        .select_from(OrderItem)
+        .join(Product, Product.product_id == OrderItem.product_id)
+        .group_by(normalized_name, Product.product_category)
         .subquery()
     )
 
 
-def _produto_grupo_por_id(id_produto: str, db: Session):
+def _product_group_by_id(product_id: str, db: Session):
     """
     Resolve nome e categoria normalizados a partir de um id.
     Permite reutilizar os agrupamentos para detalhes do produto.
     """
-    nome_normalizado = _nome_normalizado(Produto.nome_produto)
+    normalized_name = _normalized_name(Product.product_name)
     return db.execute(
-        select(nome_normalizado.label("nome_produto"), Produto.categoria_produto)
-        .where(Produto.id_produto == id_produto)
+        select(normalized_name.label("nome_produto"), Product.product_category.label("categoria_produto"))
+        .where(Product.product_id == product_id)
     ).first()
 
 
-def _aplicar_filtros_produto(consulta, colunas, busca, categoria, preco_min, preco_max):
+def _payload_to_model_fields(data: dict[str, object]) -> dict[str, object]:
+    """Mapeia campos do payload (PT) para atributos internos do model (EN)."""
+    field_map = {
+        "nome_produto": "product_name",
+        "categoria_produto": "product_category",
+        "descricao_produto": "product_description",
+        "preco_base": "base_price",
+        "peso_produto_gramas": "product_weight_grams",
+        "comprimento_centimetros": "length_cm",
+        "altura_centimetros": "height_cm",
+        "largura_centimetros": "width_cm",
+    }
+    return {field_map[key]: value for key, value in data.items() if key in field_map}
+
+
+def _apply_product_filters(query, columns, search, category, min_price, max_price):
     """
     Aplica filtros de busca textual, categorias e faixa de preco.
     Reaproveitado em consultas de listagem e contagem.
     """
-    if busca:
-        termo = f"%{busca.strip()}%"
-        consulta = consulta.where(
+    if search:
+        term = f"%{search.strip()}%"
+        query = query.where(
             or_(
-                colunas.nome_produto.ilike(termo),
-                colunas.categoria_produto.ilike(termo),
-                colunas.descricao_produto.ilike(termo),
+                columns.nome_produto.ilike(term),
+                columns.categoria_produto.ilike(term),
+                columns.descricao_produto.ilike(term),
             )
         )
 
-    if categoria:
-        categorias_normalizadas = [v.strip() for v in categoria if v and v.strip()]
-        if categorias_normalizadas:
-            consulta = consulta.where(colunas.categoria_produto.in_(categorias_normalizadas))
+    if category:
+        normalized_categories = [v.strip() for v in category if v and v.strip()]
+        if normalized_categories:
+            query = query.where(columns.categoria_produto.in_(normalized_categories))
 
-    if preco_min is not None:
-        consulta = consulta.where(colunas.preco_base >= preco_min)
+    if min_price is not None:
+        query = query.where(columns.preco_base >= min_price)
 
-    if preco_max is not None:
-        consulta = consulta.where(colunas.preco_base <= preco_max)
+    if max_price is not None:
+        query = query.where(columns.preco_base <= max_price)
 
-    return consulta
+    return query
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("", response_model=ProdutoRespostaLista)
-def listar_produtos(
+@router.get("", response_model=ProductListResponse)
+def list_products(
     busca: str | None = Query(default=None),
     categoria: list[str] | None = Query(default=None),
     preco_min: float | None = Query(default=None, ge=0),
@@ -200,96 +215,96 @@ def listar_produtos(
     nota_min: float | None = Query(default=None, ge=0, le=5),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-    db: Session = Depends(obter_db),
+    db: Session = Depends(get_db),
 ):
     """
     Lista produtos com paginacao, filtros e metricas agregadas.
     Combina CTE e subqueries para media de avaliacao e vendas.
     """
-    produtos_cte = _agrupar_produtos_base()
-    media_subq = _subquery_media_avaliacao_agrupada()
-    vendas_subq = _subquery_total_vendas_agrupadas()
+    products_cte = _group_products_base()
+    review_avg_subq = _subquery_grouped_review_average()
+    sales_subq = _subquery_grouped_total_sales()
 
-    filtros = dict(busca=busca, categoria=categoria, preco_min=preco_min, preco_max=preco_max)
+    filters = dict(search=busca, category=categoria, min_price=preco_min, max_price=preco_max)
 
-    consulta_base = (
+    base_query = (
         select(
-            produtos_cte.c.id_produto,
-            produtos_cte.c.nome_produto,
-            produtos_cte.c.categoria_produto,
-            produtos_cte.c.descricao_produto,
-            produtos_cte.c.preco_base,
-            media_subq.c.media_avaliacoes,
-            func.coalesce(vendas_subq.c.total_vendas, 0).label("total_vendas"),
-            produtos_cte.c.quantidade_registros,
+            products_cte.c.id_produto,
+            products_cte.c.nome_produto,
+            products_cte.c.categoria_produto,
+            products_cte.c.descricao_produto,
+            products_cte.c.preco_base,
+            review_avg_subq.c.media_avaliacoes,
+            func.coalesce(sales_subq.c.total_vendas, 0).label("total_vendas"),
+            products_cte.c.quantidade_registros,
         )
-        .select_from(produtos_cte)
+        .select_from(products_cte)
         .outerjoin(
-            media_subq,
-            (media_subq.c.nome_produto == produtos_cte.c.nome_produto)
-            & (media_subq.c.categoria_produto == produtos_cte.c.categoria_produto),
+            review_avg_subq,
+            (review_avg_subq.c.nome_produto == products_cte.c.nome_produto)
+            & (review_avg_subq.c.categoria_produto == products_cte.c.categoria_produto),
         )
         .outerjoin(
-            vendas_subq,
-            (vendas_subq.c.nome_produto == produtos_cte.c.nome_produto)
-            & (vendas_subq.c.categoria_produto == produtos_cte.c.categoria_produto),
+            sales_subq,
+            (sales_subq.c.nome_produto == products_cte.c.nome_produto)
+            & (sales_subq.c.categoria_produto == products_cte.c.categoria_produto),
         )
     )
 
-    consulta_base = _aplicar_filtros_produto(consulta_base, produtos_cte.c, **filtros)
+    base_query = _apply_product_filters(base_query, products_cte.c, **filters)
 
     if nota_min is not None:
-        consulta_base = consulta_base.where(media_subq.c.media_avaliacoes >= nota_min)
-        total = db.scalar(select(func.count()).select_from(consulta_base.subquery()))
+        base_query = base_query.where(review_avg_subq.c.media_avaliacoes >= nota_min)
+        total = db.scalar(select(func.count()).select_from(base_query.subquery()))
     else:
         total = db.scalar(
-            _aplicar_filtros_produto(
-                select(func.count()).select_from(produtos_cte), produtos_cte.c, **filtros
+            _apply_product_filters(
+                select(func.count()).select_from(products_cte), products_cte.c, **filters
             )
         )
 
-    linhas = db.execute(
-        consulta_base
-        .order_by(produtos_cte.c.nome_produto, produtos_cte.c.categoria_produto)
+    rows = db.execute(
+        base_query
+        .order_by(products_cte.c.nome_produto, products_cte.c.categoria_produto)
         .offset(skip)
         .limit(limit)
     ).all()
 
-    itens = [
-        ProdutoItemLista(
-            id_produto=linha.id_produto,
-            nome_produto=linha.nome_produto,
-            categoria_produto=linha.categoria_produto,
-            descricao_produto=linha.descricao_produto,
-            preco_base=linha.preco_base,
-            media_avaliacoes=_arredondar_2(float(linha.media_avaliacoes)) if linha.media_avaliacoes is not None else None,
-            total_vendas=linha.total_vendas,
-            quantidade_registros=linha.quantidade_registros,
+    items = [
+        ProductListItem(
+            id_produto=row.id_produto,
+            nome_produto=row.nome_produto,
+            categoria_produto=row.categoria_produto,
+            descricao_produto=row.descricao_produto,
+            preco_base=row.preco_base,
+            media_avaliacoes=_round_2(float(row.media_avaliacoes)) if row.media_avaliacoes is not None else None,
+            total_vendas=row.total_vendas,
+            quantidade_registros=row.quantidade_registros,
         )
-        for linha in linhas
+        for row in rows
     ]
 
-    return ProdutoRespostaLista(total=total or 0, itens=itens)
+    return ProductListResponse(total=total or 0, itens=items)
 
 
 @router.get("/categorias")
-def listar_categorias(db: Session = Depends(obter_db)):
+def list_categories(db: Session = Depends(get_db)):
     """
     Retorna categorias unicas ordenadas do catalogo.
     Filtra valores nulos e strings vazias.
     """
-    categoria = func.trim(Produto.categoria_produto)
+    category_col = func.trim(Product.product_category)
     rows = db.execute(
-        select(categoria.label("categoria_produto"))
+        select(category_col.label("categoria_produto"))
         .distinct()
-        .where(categoria.is_not(None))
-        .where(categoria != "")
-        .order_by(categoria)
+        .where(category_col.is_not(None))
+        .where(category_col != "")
+        .order_by(category_col)
     ).all()
     return [row.categoria_produto for row in rows]
 
 
-def _diretorio_dados_repo() -> Path:
+def _repo_data_dir() -> Path:
     """
     Resolve o diretorio base do repositorio para arquivos auxiliares.
     Usado para localizar CSVs de imagens por categoria.
@@ -298,25 +313,25 @@ def _diretorio_dados_repo() -> Path:
 
 
 @lru_cache(maxsize=1)
-def _categoria_imagens() -> dict[str, str]:
+def _category_images() -> dict[str, str]:
     """
     Carrega o mapeamento categoria -> imagem a partir do CSV.
     Aplica aliases para categorias com nomes alternativos.
     """
-    caminho_csv = _diretorio_dados_repo() / "dim_categoria_imagens.csv"
-    if not caminho_csv.exists():
+    csv_path = _repo_data_dir() / "dim_categoria_imagens.csv"
+    if not csv_path.exists():
         return {}
 
-    with caminho_csv.open("r", encoding="utf-8-sig", newline="") as handle:
-        leitor = csv.DictReader(handle)
-        mapeamento: dict[str, str] = {}
-        for linha in leitor:
-            categoria = (linha.get("Categoria") or linha.get("categoria") or "").strip()
-            link = (linha.get("Link") or linha.get("link") or "").strip()
-            if categoria and link:
-                mapeamento[categoria] = link
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        mapping: dict[str, str] = {}
+        for row in reader:
+            category = (row.get("Categoria") or row.get("categoria") or "").strip()
+            link = (row.get("Link") or row.get("link") or "").strip()
+            if category and link:
+                mapping[category] = link
 
-        apelidos = {
+        aliases = {
             "casa_conforto_2": "casa_conforto",
             "construcao_ferramentas_construcao": "construcao_ferramentas",
             "construcao_ferramentas_ferramentas": "construcao_ferramentas",
@@ -327,201 +342,204 @@ def _categoria_imagens() -> dict[str, str]:
             "portateis_cozinha_e_preparadores_de_alimentos": "portateis_cozinha",
         }
 
-        for apelido, destino in apelidos.items():
-            if destino in mapeamento and apelido not in mapeamento:
-                mapeamento[apelido] = mapeamento[destino]
+        for alias, target in aliases.items():
+            if target in mapping and alias not in mapping:
+                mapping[alias] = mapping[target]
 
-        return mapeamento
+        return mapping
 
 
 @router.get("/categorias-imagens")
-def listar_categorias_imagens():
+def list_category_images():
     """
     Retorna o dicionario de imagens usadas no frontend.
     Os dados sao cacheados para evitar leituras repetidas.
     A logica de imagens fica separada para permitir cache via lru_cache.
     Isso foi feito por boas praticas do fastapi mesmo que nao seja necessario para o volume atual de dados.
     """
-    return _categoria_imagens()
+    return _category_images()
 
 
-@router.get("/{id_produto}", response_model=ProdutoRespostaDetalhe)
-def detalhar_produto(
-    id_produto: str = PathParam(..., pattern=_PADRAO_ID),
-    db: Session = Depends(obter_db),
+@router.get("/{id_produto}", response_model=ProductDetailResponse)
+def get_product_detail(
+    id_produto: str = PathParam(..., pattern=ID_PATTERN),
+    db: Session = Depends(get_db),
 ):
     """
     Retorna detalhes de um produto agregado por nome e categoria.
     Inclui historico de vendas, avaliacoes e medidas medias.
     """
-    produto = _obter_produto_ou_404(id_produto, db)
+    product = _get_product_or_404(product_id=id_produto, db=db)
 
-    grupo = _produto_grupo_por_id(id_produto, db)
-    if not grupo:
+    group = _product_group_by_id(product_id=id_produto, db=db)
+    if not group:
         raise HTTPException(status_code=404, detail="Produto nao encontrado")
 
-    nome_grupo, categoria_grupo = grupo.nome_produto, grupo.categoria_produto
-    filtro_grupo = (
-        _nome_normalizado(Produto.nome_produto) == nome_grupo,
-        Produto.categoria_produto == categoria_grupo,
+    group_name, group_category = group.nome_produto, group.categoria_produto
+    group_filter = (
+        _normalized_name(Product.product_name) == group_name,
+        Product.product_category == group_category,
     )
 
-    linhas_historico = db.execute(
+    history_rows = db.execute(
         select(
-            Pedido.id_pedido,
-            Pedido.pedido_compra_timestamp,
-            Pedido.status,
-            func.count(ItemPedido.id_item).label("quantidade_itens"),
-            func.sum(ItemPedido.preco_BRL + ItemPedido.preco_frete).label("valor_total"),
+            Order.order_id.label("id_pedido"),
+            Order.purchase_timestamp.label("pedido_compra_timestamp"),
+            Order.status,
+            func.count(OrderItem.item_id).label("quantidade_itens"),
+            func.sum(OrderItem.price_brl + OrderItem.freight_price).label("valor_total"),
         )
-        .select_from(ItemPedido)
-        .join(Produto, Produto.id_produto == ItemPedido.id_produto)
-        .join(Pedido, Pedido.id_pedido == ItemPedido.id_pedido)
-        .where(*filtro_grupo)
-        .group_by(Pedido.id_pedido, Pedido.pedido_compra_timestamp, Pedido.status)
-        .order_by(Pedido.pedido_compra_timestamp.desc())
+        .select_from(OrderItem)
+        .join(Product, Product.product_id == OrderItem.product_id)
+        .join(Order, Order.order_id == OrderItem.order_id)
+        .where(*group_filter)
+        .group_by(Order.order_id, Order.purchase_timestamp, Order.status)
+        .order_by(Order.purchase_timestamp.desc())
     ).all()
 
-    linhas_avaliacoes = db.execute(
+    review_rows = db.execute(
         select(
-            AvaliacaoPedido.id_avaliacao,
-            AvaliacaoPedido.avaliacao,
-            AvaliacaoPedido.titulo_comentario,
-            AvaliacaoPedido.comentario,
-            AvaliacaoPedido.data_comentario,
+            OrderReview.review_id.label("id_avaliacao"),
+            OrderReview.rating.label("avaliacao"),
+            OrderReview.comment_title.label("titulo_comentario"),
+            OrderReview.comment.label("comentario"),
+            OrderReview.comment_date.label("data_comentario"),
         )
-        .select_from(ItemPedido)
-        .join(Produto, Produto.id_produto == ItemPedido.id_produto)
-        .join(Pedido, Pedido.id_pedido == ItemPedido.id_pedido)
-        .join(AvaliacaoPedido, AvaliacaoPedido.id_pedido == Pedido.id_pedido)
-        .where(*filtro_grupo)
-        .order_by(AvaliacaoPedido.data_comentario.desc())
+        .select_from(OrderItem)
+        .join(Product, Product.product_id == OrderItem.product_id)
+        .join(Order, Order.order_id == OrderItem.order_id)
+        .join(OrderReview, OrderReview.order_id == Order.order_id)
+        .where(*group_filter)
+        .order_by(OrderReview.comment_date.desc())
     ).all()
 
-    linhas_medidas = db.execute(
+    measure_rows = db.execute(
         select(
-            func.avg(Produto.peso_produto_gramas).label("peso_produto_gramas"),
-            func.avg(Produto.comprimento_centimetros).label("comprimento_centimetros"),
-            func.avg(Produto.altura_centimetros).label("altura_centimetros"),
-            func.avg(Produto.largura_centimetros).label("largura_centimetros"),
-            func.avg(Produto.preco_base).label("preco_base"),
-            func.max(Produto.descricao_produto).label("descricao_produto"),
+            func.avg(Product.product_weight_grams).label("peso_produto_gramas"),
+            func.avg(Product.length_cm).label("comprimento_centimetros"),
+            func.avg(Product.height_cm).label("altura_centimetros"),
+            func.avg(Product.width_cm).label("largura_centimetros"),
+            func.avg(Product.base_price).label("preco_base"),
+            func.max(Product.product_description).label("descricao_produto"),
         )
-        .select_from(Produto)
-        .where(*filtro_grupo)
+        .select_from(Product)
+        .where(*group_filter)
     ).first()
 
-    def _medida(campo: str):
+    def _measure(field: str, fallback_field: str):
         """
         Calcula media de uma medida quando houver dados agregados.
         Usa o valor individual do produto como fallback.
         """
-        valor = getattr(linhas_medidas, campo, None) if linhas_medidas else None
-        valor_padrao = getattr(produto, campo, None)
-        return _arredondar_2(float(valor) if valor is not None else valor_padrao)
+        value = getattr(measure_rows, field, None) if measure_rows else None
+        fallback_value = getattr(product, fallback_field, None)
+        return _round_2(float(value) if value is not None else fallback_value)
 
-    media_avaliacoes = (
-        sum(linha.avaliacao for linha in linhas_avaliacoes) / len(linhas_avaliacoes)
-        if linhas_avaliacoes else None
+    review_average = (
+        sum(row.avaliacao for row in review_rows) / len(review_rows)
+        if review_rows else None
     )
 
-    return ProdutoRespostaDetalhe(
-        id_produto=produto.id_produto,
-        nome_produto=nome_grupo,
-        categoria_produto=categoria_grupo,
-        descricao_produto=linhas_medidas.descricao_produto if linhas_medidas else produto.descricao_produto,
-        preco_base=_medida("preco_base"),
+    return ProductDetailResponse(
+        id_produto=product.product_id,
+        nome_produto=group_name,
+        categoria_produto=group_category,
+        descricao_produto=measure_rows.descricao_produto if measure_rows else product.product_description,
+        preco_base=_measure("preco_base", "base_price"),
         medidas={
-            "peso_produto_gramas": _medida("peso_produto_gramas"),
-            "comprimento_centimetros": _medida("comprimento_centimetros"),
-            "altura_centimetros": _medida("altura_centimetros"),
-            "largura_centimetros": _medida("largura_centimetros"),
+            "peso_produto_gramas": _measure("peso_produto_gramas", "product_weight_grams"),
+            "comprimento_centimetros": _measure("comprimento_centimetros", "length_cm"),
+            "altura_centimetros": _measure("altura_centimetros", "height_cm"),
+            "largura_centimetros": _measure("largura_centimetros", "width_cm"),
         },
-        media_avaliacoes=_arredondar_2(media_avaliacoes),
-        total_vendas=len(linhas_historico),
+        media_avaliacoes=_round_2(review_average),
+        total_vendas=len(history_rows),
         vendas_historico=[
-            ItemHistoricoVenda(
-                id_pedido=linha.id_pedido,
-                data_pedido=linha.pedido_compra_timestamp,
-                quantidade_itens=linha.quantidade_itens,
-                valor_total=float(linha.valor_total or 0),
-                status=linha.status,
+            OrderHistoryItem(
+                id_pedido=row.id_pedido,
+                data_pedido=row.pedido_compra_timestamp,
+                quantidade_itens=row.quantidade_itens,
+                valor_total=float(row.valor_total or 0),
+                status=row.status,
             )
-            for linha in linhas_historico
+            for row in history_rows
         ],
         avaliacoes=[
-            ItemAvaliacao(
-                id_avaliacao=linha.id_avaliacao,
-                nota=linha.avaliacao,
-                titulo=linha.titulo_comentario,
-                comentario=linha.comentario,
-                data_comentario=linha.data_comentario,
+            ReviewItem(
+                id_avaliacao=row.id_avaliacao,
+                nota=row.avaliacao,
+                titulo=row.titulo_comentario,
+                comentario=row.comentario,
+                data_comentario=row.data_comentario,
             )
-            for linha in linhas_avaliacoes
+            for row in review_rows
         ],
     )
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=ProdutoItemLista)
-def criar_produto(payload: ProdutoCriacao, db: Session = Depends(obter_db)):
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ProductListItem)
+def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
     """
     Cria um novo produto a partir do payload validado.
     Retorna o item resumido para atualizar o catalogo.
     """
-    produto = Produto(id_produto=uuid4().hex, **payload.model_dump())
-    db.add(produto)
+    product_data = _payload_to_model_fields(payload.model_dump())
+    product = Product(product_id=uuid4().hex, **product_data)
+    db.add(product)
     db.commit()
-    db.refresh(produto)
-    return _produto_para_item_lista(produto)
+    db.refresh(product)
+    return _product_to_list_item(product)
 
 
-@router.put("/{id_produto}", response_model=ProdutoItemLista)
-def atualizar_produto(
-    id_produto: str = PathParam(..., pattern=_PADRAO_ID),
-    payload: ProdutoAtualizacao = ...,
-    db: Session = Depends(obter_db),
+@router.put("/{id_produto}", response_model=ProductListItem)
+def update_product(
+    id_produto: str = PathParam(..., pattern=ID_PATTERN),
+    payload: ProductUpdate = ...,
+    db: Session = Depends(get_db),
 ):
     """
     Atualiza campos permitidos de um produto existente.
     Rejeita requisicoes sem dados para atualizar.
     """
-    produto = _obter_produto_ou_404(id_produto, db)
+    product = _get_product_or_404(product_id=id_produto, db=db)
 
     update_data = payload.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
 
-    for field, value in update_data.items():
-        setattr(produto, field, value)
+    model_update_data = _payload_to_model_fields(update_data)
 
-    db.add(produto)
+    for field, value in model_update_data.items():
+        setattr(product, field, value)
+
+    db.add(product)
     db.commit()
-    db.refresh(produto)
-    return _produto_para_item_lista(produto)
+    db.refresh(product)
+    return _product_to_list_item(product)
 
 
 @router.delete("/{id_produto}", status_code=status.HTTP_204_NO_CONTENT)
-def remover_produto(
-    id_produto: str = PathParam(..., pattern=_PADRAO_ID),
-    db: Session = Depends(obter_db),
+def delete_product(
+    id_produto: str = PathParam(..., pattern=ID_PATTERN),
+    db: Session = Depends(get_db),
 ):
     """
     Remove um produto se nao houver historico de vendas.
     Bloqueia a exclusao quando ha itens associados.
     """
-    produto = _obter_produto_ou_404(id_produto, db)
+    product = _get_product_or_404(product_id=id_produto, db=db)
 
-    tem_itens = db.scalar(
+    has_items = db.scalar(
         select(func.count())
-        .select_from(ItemPedido)
-        .where(ItemPedido.id_produto == id_produto)
+        .select_from(OrderItem)
+        .where(OrderItem.product_id == id_produto)
     )
 
-    if tem_itens:
+    if has_items:
         raise HTTPException(
             status_code=409,
             detail="Produto possui historico de vendas e nao pode ser removido",
         )
 
-    db.delete(produto)
+    db.delete(product)
     db.commit()

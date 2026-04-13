@@ -6,21 +6,21 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from alembic import context
-from app.database import BaseDeclarativa, motor
+from app.database import Base, engine
 import app.models 
 
-target_metadata = BaseDeclarativa.metadata
+target_metadata = Base.metadata
 
 
-def executar_migracoes():
+def run_migrations():
     """
     Executa as migracoes do Alembic usando o motor da aplicacao.
     Roda em transacao unica e aponta para o metadata do SQLAlchemy.
     """
-    with motor.connect() as connection:
+    with engine.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
 
 
-executar_migracoes()
+run_migrations()

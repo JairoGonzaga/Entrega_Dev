@@ -9,18 +9,18 @@ from typing import Optional
 from sqlalchemy import String, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import BaseDeclarativa
+from app.database import Base
 
 
-class AvaliacaoPedido(BaseDeclarativa):
+class OrderReview(Base):
     __tablename__ = "avaliacoes_pedidos"
 
-    id_avaliacao: Mapped[str] = mapped_column(String(32), primary_key=True)
-    id_pedido: Mapped[str] = mapped_column(
-        String(32), ForeignKey("pedidos.id_pedido"), nullable=False
+    review_id: Mapped[str] = mapped_column("id_avaliacao", String(32), primary_key=True)
+    order_id: Mapped[str] = mapped_column(
+        "id_pedido", String(32), ForeignKey("pedidos.id_pedido"), nullable=False
     )
-    avaliacao: Mapped[int] = mapped_column(Integer)
-    titulo_comentario: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    comentario: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    data_comentario: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    data_resposta: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rating: Mapped[int] = mapped_column("avaliacao", Integer)
+    comment_title: Mapped[Optional[str]] = mapped_column("titulo_comentario", String(255), nullable=True)
+    comment: Mapped[Optional[str]] = mapped_column("comentario", String(1000), nullable=True)
+    comment_date: Mapped[Optional[datetime]] = mapped_column("data_comentario", DateTime, nullable=True)
+    response_date: Mapped[Optional[datetime]] = mapped_column("data_resposta", DateTime, nullable=True)

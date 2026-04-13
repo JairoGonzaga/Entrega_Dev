@@ -3,26 +3,26 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.config import configuracoes
+from app.config import settings
 
-motor = create_engine(
-    configuracoes.url_banco,
+engine = create_engine(
+    settings.database_url,
     connect_args={"check_same_thread": False},
 )
 
-SessaoLocal = sessionmaker(autocommit=False, autoflush=False, bind=motor)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-class BaseDeclarativa(DeclarativeBase):
+class Base(DeclarativeBase):
     pass
 
 
-def obter_db():
+def get_db():
     """
     Fornece uma sessao do banco via dependencia do FastAPI.
     Fecha a sessao ao final do request, mesmo em erro.
     """
-    db = SessaoLocal()
+    db = SessionLocal()
     try:
         yield db
     finally:

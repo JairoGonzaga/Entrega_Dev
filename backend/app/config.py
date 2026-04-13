@@ -6,14 +6,14 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DIRETORIO_BASE = Path(__file__).resolve().parent.parent
-CAMINHO_PADRAO_BANCO = (DIRETORIO_BASE / "database.db").as_posix()
+BASE_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_DB_PATH = (BASE_DIR / "database.db").as_posix()
 
 
-class Configuracoes(BaseSettings):
-    url_banco: str = Field(default=f"sqlite:///{CAMINHO_PADRAO_BANCO}", alias="DATABASE_URL")
+class Settings(BaseSettings):
+    database_url: str = Field(default=f"sqlite:///{DEFAULT_DB_PATH}", alias="DATABASE_URL")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
-configuracoes = Configuracoes()
+settings = Settings()
