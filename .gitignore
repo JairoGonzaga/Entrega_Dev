@@ -1,1 +1,28 @@
-Atividade.md
+# Ambientes locais
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# IDE / SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Segredos e artefatos locais
+.env
+backend/.env
+*.log
+.coverage
+htmlcov/
+backend/database.db

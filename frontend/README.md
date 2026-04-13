@@ -1,73 +1,87 @@
-# React + TypeScript + Vite
+# Frontend - Painel de Catalogo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicacao React + TypeScript + Vite para o modulo de gerenciamento de produtos do e-commerce.
 
-Currently, two official plugins are available:
+## Funcionalidades implementadas
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- listagem de produtos com paginacao
+- busca textual
+- filtros por categoria e nota minima
+- visualizacao de detalhes de produto
+- exibicao de historico de vendas e avaliacoes
+- criacao, edicao e remocao de produto
+- tratamento de falhas de API com mensagens de erro
 
-## React Compiler
+## Tecnologias
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- TypeScript
+- Vite
+- ESLint
 
-## Expanding the ESLint configuration
+## Requisitos
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Node.js 20+
+- pnpm
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Rodando localmente
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+1. Instalar dependencias:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```powershell
+pnpm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Subir em desenvolvimento:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```powershell
+pnpm dev
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+3. Build de producao:
+
+```powershell
+pnpm build
+```
+
+4. Preview local do build:
+
+```powershell
+pnpm preview
+```
+
+## Integracao com backend
+
+A aplicacao tenta consumir a API na seguinte ordem:
+
+1. VITE_API_BASE_URL (se definida)
+2. /api
+3. http://127.0.0.1:8000/api
+4. http://localhost:8000/api
+
+Para fixar uma URL, criar arquivo .env na pasta frontend com:
+
+```env
+VITE_API_BASE_URL=http://localhost:8000/api
+```
+
+## Scripts disponiveis
+
+- pnpm dev
+- pnpm build
+- pnpm lint
+- pnpm preview
+
+## Estrutura resumida
+
+```
+frontend/
+|- src/
+|  |- App.tsx         # Painel principal: listagem, filtros, detalhe e CRUD
+|  |- App.css         # Estilos do painel
+|  |- main.tsx        # Bootstrap da aplicacao
+|  |- index.css       # Estilos globais
+|- public/
+|- package.json
+|- vite.config.ts
 ```

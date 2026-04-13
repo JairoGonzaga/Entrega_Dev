@@ -1,126 +1,130 @@
-# Backend — Sistema de Compras Online
+# Backend - Sistema de Compras Online
 
-API REST construída com **FastAPI** e **SQLite**, utilizando SQLAlchemy como ORM e Alembic para migrations.
+API REST em FastAPI para gerenciamento de catalogo de produtos com metricas de vendas e avaliacoes.
 
----
-
-## Requisitos
+## Tecnologias
 
 - Python 3.11+
+- FastAPI
+- SQLAlchemy
+- Alembic
+- SQLite
+- Pytest
 
----
-
-## Instalação
-
-**1. Crie e ative um ambiente virtual**
-
-```bash
-python -m venv venv
-```
-
-Windows:
-```bash
-venv\Scripts\activate
-```
-
-Mac/Linux:
-```bash
-source venv/bin/activate
-```
-
-**2. Instale as dependências**
-
-```bash
-pip install -r requirements.txt
-```
-
-**3. Configure as variáveis de ambiente**
-
-Copie o arquivo de exemplo e ajuste se necessário:
-
-```bash
-cp .env.example .env
-```
-
----
-
-## Banco de dados
-
-### Criar as tabelas
-
-```bash
-alembic upgrade head
-```
-
-Este comando lê os arquivos dentro de `alembic/versions/` e cria todas as tabelas no banco.
-
-### Ver o estado atual
-
-```bash
-alembic current
-```
-
-### Criar uma nova migration (após alterar um model)
-
-```bash
-alembic revision -m "descricao da mudanca"
-```
-
-Depois edite o arquivo gerado em `alembic/versions/` adicionando as instruções em `upgrade()` e `downgrade()`.
-
-### Desfazer a última migration
-
-```bash
-alembic downgrade -1
-```
-
----
-
-## Rodando a API
-
-```bash
-python -m app.main
-```
-
-A API estará disponível em: [http://localhost:8000](http://localhost:8000)
-
-Documentação: [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-## Estrutura do projeto
+## Estrutura principal
 
 ```
 backend/
-├── app/
-│   ├── main.py              # Ponto de entrada da aplicação
-│   ├── database.py          # Configuração do banco de dados
-│   ├── config.py            # Variáveis de ambiente
-│   ├── models/              # Models do SQLAlchemy 
-│   │   ├── consumidor.py
-│   │   ├── produto.py
-│   │   ├── vendedor.py
-│   │   ├── pedido.py
-│   │   ├── item_pedido.py
-│   │   └── avaliacao_pedido.py
-│   ├── schemas/             # Schemas do Pydantic
-│   │   ├── consumidor.py
-│   │   ├── produto.py
-│   │   ├── vendedor.py
-│   │   ├── pedido.py
-│   │   ├── item_pedido.py
-│   │   └── avaliacao_pedido.py
-│   └── routers/             # Rotas da API
-│       ├── consumidores.py
-│       ├── produtos.py
-│       ├── vendedores.py
-│       ├── pedidos.py
-│       ├── itens_pedidos.py
-│       └── avaliacoes_pedidos.py
-├── alembic/
-│   ├── env.py               # Configuração do Alembic
-│   └── versions/            # Arquivos de migration
-├── alembic.ini              # Configuração principal do Alembic
-├── requirements.txt
-└── .env.example
+|- app/
+|  |- main.py                  # Inicializacao da API, CORS e startup
+|  |- config.py                # Configuracoes e variaveis de ambiente
+|  |- database.py              # Engine, SessionLocal e Base
+|  |- data_ingestion.py        # Carga de dados via CSV
+|  |- models/                  # Models SQLAlchemy
+|  |- schemas/                 # Schemas Pydantic
+|  |- routers/
+|     |- produtos.py           # Endpoints de produtos
+|- alembic/
+|  |- versions/                # Migracoes
+|- tests/
+|  |- test_api.py
+|  |- test_data_ingestion.py
+|- scripts/
+|  |- contar_categorias.py
+|- requirements.txt
+|- pytest.ini
+|- alembic.ini
 ```
+
+## Setup rapido
+
+1. Criar ambiente virtual e ativar:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+2. Instalar dependencias:
+
+```powershell
+pip install -r requirements.txt
+```
+
+3. Rodar API:
+
+```powershell
+python -m app.main
+```
+
+Acessos:
+- API: http://localhost:8000
+- Docs Swagger: http://localhost:8000/docs
+
+## Banco e migracoes
+
+Aplicar todas as migracoes:
+
+```powershell
+alembic upgrade head
+```
+
+Ver migration atual:
+
+```powershell
+alembic current
+```
+
+Criar nova migration:
+
+```powershell
+alembic revision -m "descricao da mudanca"
+```
+
+## Ingestao de dados
+
+A carga inicial usa os CSVs da pasta data_ingestao na raiz do repositorio.
+
+Comportamento atual:
+- ao iniciar a API, tabelas sao criadas se nao existirem
+- a ingestao roda automaticamente
+- se as tabelas ja estiverem populadas, a ingestao nao duplica dados
+
+## Endpoints implementados
+
+Prefixo base: /api
+
+- GET /produtos
+  - filtros: busca, categoria, preco_min, preco_max, nota_min
+  - paginacao: skip e limit
+- GET /produtos/categorias
+- GET /produtos/categorias-imagens
+- GET /produtos/{id_produto}
+- POST /produtos
+- PUT /produtos/{id_produto}
+- DELETE /produtos/{id_produto}
+
+Healthcheck:
+- GET /
+
+## Testes
+
+Rodar toda a suite:
+
+```powershell
+pytest -v
+```
+
+Cobertura:
+
+```powershell
+pytest --cov=app --cov-report=term-missing
+```
+
+Escopo de testes atual:
+- healthcheck
+- listagem e filtros de produtos
+- detalhe com historico e avaliacoes
+- CRUD de produtos
+- caminhos de validacao e not found
+- ingestao de dados e funcoes auxiliares

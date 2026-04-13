@@ -1,5 +1,7 @@
 """Entrada da API: cria app, CORS, rotas e tarefas de startup."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -9,10 +11,28 @@ from app.data_ingestion import populate_db_from_csv
 from app.database import Base, engine
 from app.routers import products_router
 
+
+def _run_startup_tasks() -> None:
+    """
+    Executa rotinas de inicializacao ao subir a aplicacao.
+    Cria tabelas, popula dados de exemplo e aplica indices.
+    """
+    Base.metadata.create_all(bind=engine)
+    populate_db_from_csv()
+    _create_indexes()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    _run_startup_tasks()
+    yield
+
+
 app = FastAPI(
     title="Sistema de Compras Online",
     description="API para gerenciamento de pedidos, produtos, consumidores e vendedores.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -44,18 +64,6 @@ def _create_indexes() -> None:
     with engine.begin() as conexao:
         for comando in comandos:
             conexao.execute(text(comando))
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    """
-    Executa rotinas de inicializacao quando a API sobe.
-    Cria tabelas, popula dados de exemplo e aplica indices.
-    """
-    Base.metadata.create_all(bind=engine)
-    populate_db_from_csv()
-    _create_indexes()
-
 
 @app.get("/", tags=["Health"])
 def healthcheck():

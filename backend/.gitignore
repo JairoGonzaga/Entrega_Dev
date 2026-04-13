@@ -7,4 +7,6 @@ __pycache__/
 .venv/
 venv/
 env/
-scripts/
+.pytest_cache/
+.coverage
+htmlcov/
