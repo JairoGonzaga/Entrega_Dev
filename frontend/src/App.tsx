@@ -230,13 +230,9 @@ function CatalogPanel() {
   const [search, setSearch] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [minRating, setMinRating] = useState('')
-  const [minPrice, setMinPrice] = useState('')
-  const [maxPrice, setMaxPrice] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [debouncedCategories, setDebouncedCategories] = useState<string[]>([])
   const [debouncedMinRating, setDebouncedMinRating] = useState('')
-  const [debouncedMinPrice, setDebouncedMinPrice] = useState('')
-  const [debouncedMaxPrice, setDebouncedMaxPrice] = useState('')
   const [page, setPage] = useState(1)
   const [allCategories, setAllCategories] = useState<string[]>([])
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
@@ -280,12 +276,6 @@ function CatalogPanel() {
     }
     if (debouncedMinRating.trim()) {
       params.set('nota_min', debouncedMinRating.trim())
-    }
-    if (debouncedMinPrice.trim()) {
-      params.set('preco_min', debouncedMinPrice.trim())
-    }
-    if (debouncedMaxPrice.trim()) {
-      params.set('preco_max', debouncedMaxPrice.trim())
     }
 
     try {
@@ -353,20 +343,18 @@ function CatalogPanel() {
       setDebouncedSearch(search)
       setDebouncedCategories(selectedCategories)
       setDebouncedMinRating(minRating)
-      setDebouncedMinPrice(minPrice)
-      setDebouncedMaxPrice(maxPrice)
     }, 300)
 
     return () => {
       window.clearTimeout(timeout)
     }
-  }, [search, selectedCategories, minRating, minPrice, maxPrice])
+  }, [search, selectedCategories, minRating])
 
   useEffect(() => {
     void loadProducts(1)
     setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, debouncedCategories, debouncedMinRating, debouncedMinPrice, debouncedMaxPrice])
+  }, [debouncedSearch, debouncedCategories, debouncedMinRating])
 
 
   useEffect(() => {
@@ -637,24 +625,6 @@ function CatalogPanel() {
           onChange={(event) => setMinRating(event.target.value)}
         />
 
-        <div className="price-range">
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Preco minimo"
-            value={minPrice}
-            onChange={(event) => setMinPrice(event.target.value)}
-          />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Preco maximo"
-            value={maxPrice}
-            onChange={(event) => setMaxPrice(event.target.value)}
-          />
-        </div>
       </section>
 
       <section className="category-chips" aria-label="Categorias selecionadas">
