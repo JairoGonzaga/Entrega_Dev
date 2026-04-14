@@ -61,6 +61,8 @@ alembic upgrade head
 
 5. Rodar API
 
+Esse comando e suficiente desde que voce esteja dentro da pasta `backend` com o ambiente virtual ativado.
+
 ```powershell
 python -m app.main
 ```
@@ -98,6 +100,7 @@ Frontend disponivel em:
 
 Configuracao de API:
 - O frontend tenta, nessa ordem: VITE_API_BASE_URL, /api, http://127.0.0.1:8000/api e http://localhost:8000/api.
+- O proxy de desenvolvimento do Vite aponta para o backend em http://127.0.0.1:8000.
 - Se quiser fixar a URL, crie frontend/.env com:
 
 ```env
@@ -232,22 +235,3 @@ Arquitetura modularizada:
 - CI GitLab Pipeline (`.gitlab-ci.yml`)
 - Git hooks pre-push/pre-commit
 - QA CLI local versionado
-
-## Deploy
-
-### Frontend (Vercel)
-
-1. Conectar repositorio no Vercel
-2. Build command: `corepack pnpm install && corepack pnpm build`
-3. Output directory: `dist`
-4. Env var: `VITE_API_BASE_URL` (URL da API em producao)
-
-### Backend (Heroku, Render, etc)
-
-1. Usar `Procfile` se necessario ou `python -m app.main`
-2. Instalar dependencias: `pip install -r requirements.txt`
-3. Configurar banco de dados (SQLite em disco ou PostgreSQL)
-
----
-
-**Desenvolvido em 2026 - Entrega DEV Challenge**
