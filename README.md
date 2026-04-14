@@ -92,7 +92,7 @@ pnpm install
 3. Rodar em modo desenvolvimento
 
 ```powershell
-pnpm dev
+corepack pnpm dev
 ```
 
 Frontend disponivel em:
