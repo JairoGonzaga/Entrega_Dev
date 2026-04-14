@@ -137,21 +137,6 @@ export function useCatalogPanel() {
   }, [debouncedSearch, debouncedCategories, debouncedMinRating])
 
   useEffect(() => {
-    async function loadCategories() {
-      try {
-        const data = await fetchCategories()
-        console.info('categorias:total', data.length)
-        setAllCategories(data)
-        setCategoriesError(null)
-      } catch (err) {
-        setCategoriesError(err instanceof Error ? err.message : 'Erro ao carregar categorias')
-      }
-    }
-
-    void loadCategories()
-  }, [])
-
-  useEffect(() => {
     async function loadCategoryImages() {
       try {
         const data = await fetchCategoryImages()

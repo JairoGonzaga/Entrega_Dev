@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { CategoryImageMap, ProductDetail } from '../types'
 
 type ProductDetailsPanelProps = {
@@ -9,6 +10,66 @@ type ProductDetailsPanelProps = {
   categoryInitials: (value: string) => string
 }
 
+type ReviewCommentProps = {
+  comment: string
+  isExpanded: boolean
+  onToggle: () => void
+}
+
+function ReviewComment({ comment, isExpanded, onToggle }: ReviewCommentProps) {
+  const commentRef = useRef<HTMLElement | null>(null)
+  const [isOverflowing, setIsOverflowing] = useState(false)
+
+  useEffect(() => {
+    const element = commentRef.current
+    if (!element) {
+      return
+    }
+
+    const measureOverflow = () => {
+      const wasExpanded = element.classList.contains('expanded')
+      if (wasExpanded) {
+        element.classList.remove('expanded')
+      }
+
+      const overflowing = element.scrollHeight > element.clientHeight + 1
+
+      if (wasExpanded) {
+        element.classList.add('expanded')
+      }
+
+      setIsOverflowing(overflowing)
+    }
+
+    measureOverflow()
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => measureOverflow())
+      : null
+
+    resizeObserver?.observe(element)
+    window.addEventListener('resize', measureOverflow)
+
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', measureOverflow)
+    }
+  }, [comment])
+
+  return (
+    <>
+      <small ref={commentRef} className={`review-comment ${isExpanded ? 'expanded' : ''}`}>
+        {comment}
+      </small>
+      {(isOverflowing || isExpanded) && (
+        <button type="button" className="link-button" onClick={onToggle}>
+          {isExpanded ? 'Ver menos' : 'Ver mais'}
+        </button>
+      )}
+    </>
+  )
+}
+
 export function ProductDetailsPanel({
   detail,
   isDetailLoading,
@@ -17,18 +78,37 @@ export function ProductDetailsPanel({
   formatDate,
   categoryInitials,
 }: ProductDetailsPanelProps) {
+  const [expandedReviewIds, setExpandedReviewIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setExpandedReviewIds(new Set())
+  }, [detail?.id_produto])
+
+  function toggleReview(reviewId: string) {
+    setExpandedReviewIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(reviewId)) {
+        next.delete(reviewId)
+      } else {
+        next.add(reviewId)
+      }
+      return next
+    })
+  }
+
   return (
     <article className="details-card">
       <div className="section-head">
         <h2>Detalhes</h2>
       </div>
 
-      {isDetailLoading ? (
-        <p>Carregando detalhes...</p>
-      ) : !detail ? (
-        <p>Selecione um produto para ver as informacoes completas.</p>
-      ) : (
-        <>
+      <div className="details-body">
+        {isDetailLoading ? (
+          <p>Carregando detalhes...</p>
+        ) : !detail ? (
+          <p>Selecione um produto para ver as informacoes completas.</p>
+        ) : (
+          <>
           <div className="summary-row">
             <div className="detail-hero">
               <div className="detail-thumb">
@@ -81,28 +161,30 @@ export function ProductDetailsPanel({
               {detail.vendas_historico.length === 0 ? (
                 <p>Sem vendas registradas.</p>
               ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Pedido</th>
-                      <th>Data</th>
-                      <th>Itens</th>
-                      <th>Total</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.vendas_historico.map((venda) => (
-                      <tr key={venda.id_pedido}>
-                        <td>{venda.id_pedido}</td>
-                        <td>{formatDate(venda.data_pedido)}</td>
-                        <td>{venda.quantidade_itens}</td>
-                        <td>{formatCurrency(venda.valor_total)}</td>
-                        <td>{venda.status}</td>
+                <div className="table-scroll" role="region" aria-label="Tabela de historico de vendas">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pedido</th>
+                        <th>Data</th>
+                        <th>Itens</th>
+                        <th>Total</th>
+                        <th>Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {detail.vendas_historico.map((venda) => (
+                        <tr key={venda.id_pedido}>
+                          <td>{venda.id_pedido}</td>
+                          <td>{formatDate(venda.data_pedido)}</td>
+                          <td>{venda.quantidade_itens}</td>
+                          <td>{formatCurrency(venda.valor_total)}</td>
+                          <td>{venda.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
 
@@ -111,20 +193,32 @@ export function ProductDetailsPanel({
               {detail.avaliacoes.length === 0 ? (
                 <p>Sem avaliacoes registradas.</p>
               ) : (
-                <ul className="reviews">
-                  {detail.avaliacoes.map((avaliacao) => (
-                    <li key={avaliacao.id_avaliacao}>
-                      <strong>{avaliacao.nota} / 5</strong>
-                      <p>{avaliacao.titulo || 'Sem titulo'}</p>
-                      <small>{avaliacao.comentario || 'Sem comentario'}</small>
-                    </li>
-                  ))}
-                </ul>
+                <div className="reviews-scroll" role="region" aria-label="Lista de avaliacoes">
+                  <ul className="reviews">
+                    {detail.avaliacoes.map((avaliacao) => {
+                      const isExpanded = expandedReviewIds.has(avaliacao.id_avaliacao)
+                      const comment = avaliacao.comentario?.trim() || 'Sem comentario'
+
+                      return (
+                        <li key={avaliacao.id_avaliacao}>
+                          <strong>{avaliacao.nota} / 5</strong>
+                          <p>{avaliacao.titulo || 'Sem titulo'}</p>
+                          <ReviewComment
+                            comment={comment}
+                            isExpanded={isExpanded}
+                            onToggle={() => toggleReview(avaliacao.id_avaliacao)}
+                          />
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
               )}
             </section>
           </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </article>
   )
 }

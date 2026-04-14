@@ -16,6 +16,23 @@ function normalizeBase(base: string) {
   return base.endsWith('/') ? base.slice(0, -1) : base
 }
 
+async function readErrorDetail(response: Response) {
+  const contentType = response.headers.get('content-type') ?? ''
+
+  if (contentType.includes('application/json')) {
+    const jsonBody = await response.json().catch(() => null)
+    const detail = jsonBody && typeof jsonBody === 'object'
+      ? (jsonBody as { detail?: string }).detail
+      : null
+    if (detail) {
+      return detail
+    }
+  }
+
+  const textBody = await response.text().catch(() => '')
+  return textBody.trim() || null
+}
+
 async function readJsonResponse(response: Response) {
   const text = await response.text()
   if (!text) {
@@ -62,8 +79,8 @@ export async function fetchWithFallback(path: string, init?: RequestInit) {
 export async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetchWithFallback(path)
   if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new Error(body?.detail ?? 'Falha na requisicao')
+    const detail = await readErrorDetail(response)
+    throw new Error(detail ?? `Erro ${response.status} na requisicao`)
   }
 
   return response.json() as Promise<T>
@@ -71,10 +88,10 @@ export async function fetchJson<T>(path: string): Promise<T> {
 
 export async function fetchCategories() {
   const response = await fetchWithFallback('/produtos/categorias')
-  const data = await readJsonResponse(response)
+  const data = response.ok ? await readJsonResponse(response) : null
 
   if (!response.ok) {
-    const detail = typeof data === 'object' && data ? (data as { detail?: string }).detail : undefined
+    const detail = await readErrorDetail(response)
     throw new Error(detail ?? `Erro ${response.status} ao carregar categorias`)
   }
 
@@ -87,10 +104,10 @@ export async function fetchCategories() {
 
 export async function fetchCategoryImages() {
   const response = await fetchWithFallback('/produtos/categorias-imagens')
-  const data = await readJsonResponse(response)
+  const data = response.ok ? await readJsonResponse(response) : null
 
   if (!response.ok) {
-    const detail = typeof data === 'object' && data ? (data as { detail?: string }).detail : undefined
+    const detail = await readErrorDetail(response)
     throw new Error(detail ?? `Erro ${response.status} ao carregar imagens`)
   }
 
