@@ -181,8 +181,88 @@ Prefixo da API: /api
 Healthcheck:
 - GET /
 
+## CI/CD - GitHub Actions
+
+Workflow automático configurado em `.github/workflows/frontend-ci.yml`:
+
+- **Frontend**: lint (ESLint), testes (Vitest) e build
+- **Backend**: testes (pytest)
+
+Executa automaticamente em push para main ou pull requests.
+
+## Estrutura do codigo
+
+### Backend
+
+Organizacao por responsabilidade:
+- `models/`: definicoes de banco SQLAlchemy
+- `schemas/`: validacao Pydantic para request/response
+- `routers/`: endpoints da API
+- `database.py`: conexao e sessao
+- `data_ingestion.py`: importacao de CSVs
+- `main.py`: configuracao FastAPI
+
+### Frontend
+
+Arquitetura modularizada:
+- `src/features/catalog/`: dominio de catálogo isolado
+  - `types.ts`: tipos TypeScript
+  - `api.ts`: chamadas HTTP
+  - `utils.ts`: utilitarios (busca, paginacao)
+  - `useCatalogPanel.ts`: gerenciamento de estado
+  - `components/`: componentes UI
+  - `CatalogPage.tsx`: pagina principal
+- `src/App.tsx`: entrada da aplicacao
+- `src/App.css`: estilos globais
+
 ## Status atual da entrega
 
-- Backend funcional com ingestao de dados e CRUD de produtos
-- Frontend funcional com listagem, filtros, detalhes e formulario de criacao/edicao
-- Testes de backend cobrindo cenarios de API e ingestao
+✅ Backend funcional
+- Ingestao de dados  
+- CRUD de produtos com validacoes
+- Testes cobrindo cenarios principais
+
+✅ Frontend funcional
+- Listagem e filtros
+- Detalhes com historico de vendas e avaliacoes
+- Criacao, edicao e remocao de produtos
+- Tratamento de erros com mensagens claras
+- Pronto para produção (Vercel ou similar)
+
+✅ DevOps
+- CI/CD GitHub Actions
+- CI GitLab Pipeline (`.gitlab-ci.yml`)
+- Git hooks pre-push/pre-commit
+- QA CLI local versionado
+
+## Contribuindo
+
+Antes de enviar mudancas:
+
+```powershell
+# Executar validacoes locais
+powershell -ExecutionPolicy Bypass -File .\scripts\qa-cli.ps1 full
+```
+
+Alternativa (sem PowerShell):
+- Frontend: `corepack pnpm lint && corepack pnpm test && corepack pnpm build`
+- Backend: `pytest -v`
+
+## Deploy
+
+### Frontend (Vercel)
+
+1. Conectar repositorio no Vercel
+2. Build command: `corepack pnpm install && corepack pnpm build`
+3. Output directory: `dist`
+4. Env var: `VITE_API_BASE_URL` (URL da API em producao)
+
+### Backend (Heroku, Render, etc)
+
+1. Usar `Procfile` se necessario ou `python -m app.main`
+2. Instalar dependencias: `pip install -r requirements.txt`
+3. Configurar banco de dados (SQLite em disco ou PostgreSQL)
+
+---
+
+**Desenvolvido em 2026 - Entrega DEV Challenge**

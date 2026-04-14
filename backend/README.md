@@ -100,9 +100,37 @@ Prefixo base: /api
 - GET /produtos/categorias
 - GET /produtos/categorias-imagens
 - GET /produtos/{id_produto}
-- POST /produtos
-- PUT /produtos/{id_produto}
-- DELETE /produtos/{id_produto}
+- POST /produtos (criar novo)
+- PUT /produtos/{id_produto} (atualizar)
+- DELETE /produtos/{id_produto} (deletar)
+
+## Testes
+
+Cobertura de testes com pytest:
+
+```powershell
+pytest -v
+```
+
+Com cobertura de codigo:
+
+```powershell
+pytest --cov=app --cov-report=term-missing --cov-report=html
+```
+
+Testes implementados:
+- Endpoints de listagem, criacao, atualizacao e remocao
+- Ingestao de dados a partir de CSVs
+- Validacoes de entrada
+
+## Notas de Producao
+
+- SQLite atual é adequado para desenvolvimento.
+- Para producao com multiplos usuarios, considere PostgreSQL.
+- CORS habilitado para http://localhost:5173 (desenvolvi
+to).
+  - Ajuste em `app/config.py` para dominios de producao.
+- Indices criados automaticamente nas tabelas principais.
 
 Healthcheck:
 - GET /

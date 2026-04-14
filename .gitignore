@@ -1,32 +1,80 @@
-# Ambientes locais
+# Python / Venv
 .venv/
 venv/
 env/
+ENV/
+*.venv
 
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
+*.egg-info/
+dist/
+build/
 .pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
-# Node / frontend
+# Banco de dados
+*.db
+*.sqlite3
+backend/database.db
+
+# Node / Frontend
 node_modules/
 frontend/dist/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
 
-# Skills / configuracoes do agente
-.github/skills/
-skills/
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 
-# IDE / SO
+# IDE / Editor
 .vscode/*
 !.vscode/extensions.json
 .idea/
+.idea/**
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db
 
-# Segredos e artefatos locais
+# Env files
 .env
+.env.local
+.env.*.local
 backend/.env
-*.log
-.coverage
-htmlcov/
-backend/database.db
+frontend/.env
+frontend/.env.local
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Temporarios
+*.tmp
+*.bak
+*.swp
+.temp/
+tmp/
+
+# Segredos / Agent customization
+.instructions.md
+.prompt.md
+.agent.md
+*.agent.md
+copilot-instructions.md
+AGENTS.md
